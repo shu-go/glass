@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"os/signal"
@@ -115,33 +114,21 @@ func listAllWindows(allprocs bool, orgWins []*Window) (wins []*Window, err error
 
 		var alpha uintptr
 		if orgWin != nil {
-			if strings.Contains(title, "GVIM") {
-				log.Printf("  %q org=%v, alpha=%v", title, orgWin.dump(), orgWin.OrgAlpha)
-			}
 			alpha = uintptr(orgWin.OrgAlpha)
 		} else {
 			var flag uintptr
-			result, _, err := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), uintptr(unsafe.Pointer(&flag)))
-			if strings.Contains(title, "GVIM") {
-				log.Printf("  %q alpha=%v result=%v err=%v", title, alpha, result, err)
-			}
+			result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), uintptr(unsafe.Pointer(&flag)))
 			if result == 0 || flag&LWA_ALPHA == 0 {
 				alpha = 255
 			}
 			/*
 				style, _, err := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
-				//if strings.Contains(title, "GVIM") {
-				log.Printf("  %q style=%v err=%v", title, style&WS_EX_LAYERED, err)
-				//}
 				if style&WS_EX_LAYERED != 0 {
 					result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), LWA_ALPHA)
 					if result == 0 {
 						alpha = 255
 					}
 				} else {
-					if strings.Contains(title, "GVIM") {
-						log.Printf("  %q else", title)
-					}
 					alpha = 255
 				}
 			*/
@@ -539,7 +526,6 @@ func recoverAlpha(wins []*Window) {
 			//setWindowLong.Call(uintptr(w.Handle), GWL_EXSTYLE, style&^WS_EX_LAYERED)
 			setAlpha(w.Handle, 255)
 		} else {
-			log.Printf("%q=>alpha=%v", w.Title, w.OrgAlpha)
 			/*
 				_, _, err := setLayeredWindowAttributes.Call(uintptr(w.Handle), 0, uintptr(255*float64(100-w.OrgAlpha)/100), LWA_ALPHA)
 				if err != nil {
