@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"os/signal"
@@ -26,6 +27,7 @@ type (
 		PID         int
 		ZPrevHandle syscall.Handle
 		Rect        Rect
+		OrgAlpha    int
 	}
 )
 
@@ -41,6 +43,7 @@ var (
 
 	getWindowRect = user32.NewProc("GetWindowRect")
 
+	getLayeredWindowAttributes = user32.NewProc("GetLayeredWindowAttributes")
 	setLayeredWindowAttributes = user32.NewProc("SetLayeredWindowAttributes")
 	getWindowLong              = user32.NewProc("GetWindowLongW")
 	setWindowLong              = user32.NewProc("SetWindowLongW")
@@ -63,7 +66,9 @@ const (
 	GWL_EXSTYLE   = 0xFFFFFFEC
 )
 
-func listAllWindows(allprocs bool) (wins []*Window, err error) {
+func listAllWindows(allprocs bool, orgWins []*Window) (wins []*Window, err error) {
+	orgDict := makeHWND2WindowDict(orgWins)
+
 	cb := syscall.NewCallback(func(hwnd syscall.Handle, lparam uintptr) uintptr {
 		b, _, _ := isWindow.Call(uintptr(hwnd))
 		if b == 0 {
@@ -101,12 +106,54 @@ func listAllWindows(allprocs bool) (wins []*Window, err error) {
 			r = Rect{}
 		}
 
+		var orgWin *Window
+		if orgDict != nil {
+			if w, found := orgDict[hwnd]; found {
+				orgWin = w
+			}
+		}
+
+		var alpha uintptr
+		if orgWin != nil {
+			if strings.Contains(title, "GVIM") {
+				log.Printf("  %q org=%v, alpha=%v", title, orgWin.dump(), orgWin.OrgAlpha)
+			}
+			alpha = uintptr(orgWin.OrgAlpha)
+		} else {
+			var flag uintptr
+			result, _, err := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), uintptr(unsafe.Pointer(&flag)))
+			if strings.Contains(title, "GVIM") {
+				log.Printf("  %q alpha=%v result=%v err=%v", title, alpha, result, err)
+			}
+			if result == 0 || flag&LWA_ALPHA == 0 {
+				alpha = 255
+			}
+			/*
+				style, _, err := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
+				//if strings.Contains(title, "GVIM") {
+				log.Printf("  %q style=%v err=%v", title, style&WS_EX_LAYERED, err)
+				//}
+				if style&WS_EX_LAYERED != 0 {
+					result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), LWA_ALPHA)
+					if result == 0 {
+						alpha = 255
+					}
+				} else {
+					if strings.Contains(title, "GVIM") {
+						log.Printf("  %q else", title)
+					}
+					alpha = 255
+				}
+			*/
+		}
+
 		win := &Window{
 			Title:       title,
 			Handle:      hwnd,
 			PID:         int(processID),
 			ZPrevHandle: prevHWND,
 			Rect:        r,
+			OrgAlpha:    int(alpha),
 		}
 		wins = append(wins, win)
 
@@ -268,7 +315,7 @@ func filterWindowsByTitle(wins []*Window, filter string) []*Window {
 }
 
 func runList(target string, allprocs bool) error {
-	wins, err := listAllWindows(allprocs)
+	wins, err := listAllWindows(allprocs, nil)
 	if err != nil {
 		return err
 	}
@@ -295,7 +342,7 @@ func runList(target string, allprocs bool) error {
 }
 
 func runTemp(target string, alpha int, allprocs bool) error {
-	wins, err := listAllWindows(allprocs)
+	wins, err := listAllWindows(allprocs, nil)
 	if err != nil {
 		return err
 	}
@@ -304,7 +351,7 @@ func runTemp(target string, alpha int, allprocs bool) error {
 
 	for _, w := range tgtwins {
 		root := makeZOrderGraph(w, wins)
-		filterGraphOverwrapping(root, w)
+		level := filterGraphOverwrapping(root, w)
 
 		curr := root
 		for {
@@ -313,9 +360,8 @@ func runTemp(target string, alpha int, allprocs bool) error {
 				break
 			}
 
-			idx, _, _ := getWindowLong.Call(uintptr(curr.Window.Handle), GWL_EXSTYLE)
-			setWindowLong.Call(uintptr(curr.Window.Handle), GWL_EXSTYLE, idx|WS_EX_LAYERED)
-			setLayeredWindowAttributes.Call(uintptr(curr.Window.Handle), 0, uintptr(255*float64(100-alpha)/100), LWA_ALPHA)
+			setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+			level--
 		}
 	}
 
@@ -323,15 +369,13 @@ func runTemp(target string, alpha int, allprocs bool) error {
 }
 
 func runRecover(allprocs bool) error {
-	wins, err := listAllWindows(allprocs)
+	wins, err := listAllWindows(allprocs, nil)
 	if err != nil {
 		return err
 	}
 
 	for _, w := range wins {
-		idx, _, _ := getWindowLong.Call(uintptr(w.Handle), GWL_EXSTYLE)
-		setWindowLong.Call(uintptr(w.Handle), GWL_EXSTYLE, idx&^WS_EX_LAYERED)
-		setLayeredWindowAttributes.Call(uintptr(w.Handle), 0, 255, LWA_ALPHA)
+		setAlpha(w.Handle, 255)
 	}
 
 	return nil
@@ -343,15 +387,18 @@ func runWatch(target string, interval time.Duration, alpha int, allprocs bool) e
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, os.Interrupt)
 
+	var wins []*Window //save for listAllWindows() and recoverAlpha()
 wachLoop:
 	for {
-		wins, err := listAllWindows(allprocs)
+		var err error
+		wins, err = listAllWindows(allprocs, wins)
 		if err != nil {
 			return err
 		}
 
 		tgtwins := filterWindowsByTitle(wins, target)
-		subtract := wins[:]
+		subtract := make([]*Window, 0, len(wins))
+		copy(subtract, wins)
 
 		for _, w := range tgtwins {
 			root := makeZOrderGraph(w, wins)
@@ -364,9 +411,7 @@ wachLoop:
 					break
 				}
 
-				style, _, _ := getWindowLong.Call(uintptr(curr.Window.Handle), GWL_EXSTYLE)
-				setWindowLong.Call(uintptr(curr.Window.Handle), GWL_EXSTYLE, style|WS_EX_LAYERED)
-				setLayeredWindowAttributes.Call(uintptr(curr.Window.Handle), 0, uintptr(255*math.Pow(float64(100-alpha)/100, float64(level))), LWA_ALPHA)
+				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
 
 				idx := -1
 				for i, s := range subtract {
@@ -383,9 +428,7 @@ wachLoop:
 		}
 
 		for _, w := range subtract {
-			idx, _, _ := getWindowLong.Call(uintptr(w.Handle), GWL_EXSTYLE)
-			setWindowLong.Call(uintptr(w.Handle), GWL_EXSTYLE, idx&^WS_EX_LAYERED)
-			setLayeredWindowAttributes.Call(uintptr(w.Handle), 0, 255, LWA_ALPHA)
+			setAlpha(w.Handle, 255)
 		}
 
 		select {
@@ -397,7 +440,10 @@ wachLoop:
 		time.Sleep(interval)
 	}
 
-	return runRecover(allprocs)
+	wins, _ = listAllWindows(allprocs, wins)
+	recoverAlpha(wins)
+
+	return nil
 }
 
 type WinNode struct {
@@ -455,4 +501,56 @@ func filterGraphOverwrapping(curr *WinNode, tgt *Window) int {
 		curr.Prev = prev.Prev
 		return filterGraphOverwrapping(curr, tgt)
 	}
+}
+
+func makeHWND2WindowDict(wins []*Window) map[syscall.Handle]*Window {
+	var d map[syscall.Handle]*Window
+	if len(wins) != 0 {
+		d = make(map[syscall.Handle]*Window)
+		for _, w := range wins {
+			d[w.Handle] = w
+		}
+		return d
+	}
+	return nil
+}
+
+func setAlpha(hwnd syscall.Handle, alpha uintptr) {
+	if alpha == 255 {
+		setLayeredWindowAttributes.Call(uintptr(hwnd), 0, 255, LWA_ALPHA)
+		style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
+		// clear WS_EX_LAYERED bit
+		setWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE, style&^WS_EX_LAYERED)
+	} else {
+		style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
+		setWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE, style|WS_EX_LAYERED)
+		setLayeredWindowAttributes.Call(uintptr(hwnd), 0, alpha, LWA_ALPHA)
+	}
+}
+
+func recoverAlpha(wins []*Window) {
+	for _, w := range wins {
+		style, _, _ := getWindowLong.Call(uintptr(w.Handle), GWL_EXSTYLE)
+		if style&WS_EX_LAYERED == 0 {
+			continue
+		}
+
+		if w.OrgAlpha == 255 {
+			//setWindowLong.Call(uintptr(w.Handle), GWL_EXSTYLE, style&^WS_EX_LAYERED)
+			setAlpha(w.Handle, 255)
+		} else {
+			log.Printf("%q=>alpha=%v", w.Title, w.OrgAlpha)
+			/*
+				_, _, err := setLayeredWindowAttributes.Call(uintptr(w.Handle), 0, uintptr(255*float64(100-w.OrgAlpha)/100), LWA_ALPHA)
+				if err != nil {
+					log.Printf("%q SetLayeredWindowAttributeserr=%v", w.Title, err)
+				}
+			*/
+			setAlpha(w.Handle, uintptr(w.OrgAlpha))
+		}
+	}
+}
+
+func alphaFromPercent(percent, level int) uintptr {
+	return uintptr(255 * math.Pow(float64(100-percent)/100, float64(level)))
 }
