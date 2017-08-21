@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 	//"golang.org/x/sys/windows"
 	//"github.com/golang/sys/windows"
 
+	"bitbucket.org/shu/log"
 	"github.com/urfave/cli"
 )
 
@@ -51,6 +53,17 @@ var (
 	kernel32 = syscall.NewLazyDLL("kernel32.dll")
 	//-> use windows.XXX
 )
+
+var (
+	verbose log.Loggerer = log.New(ioutil.Discard)
+)
+
+func initVerboseLog(c *cli.Context) {
+	if c.GlobalBool("verbose") {
+		verbose = log.New(os.Stderr)
+	}
+	verbose.SetFlags(log.NilHeader)
+}
 
 const (
 	INFINITE     = 0xFFFFFFFF
@@ -174,6 +187,8 @@ func main() {
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
 			Action: func(c *cli.Context) error {
+				initVerboseLog(c)
+
 				allprocs := c.Bool("allprocs")
 				alpha := c.Int("alpha")
 				if alpha < 0 || 100 < alpha {
@@ -203,6 +218,8 @@ func main() {
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
 			Action: func(c *cli.Context) error {
+				initVerboseLog(c)
+
 				allprocs := c.Bool("allprocs")
 				target := c.String("target")
 				for _, v := range c.Args() {
@@ -227,6 +244,8 @@ func main() {
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
 			Action: func(c *cli.Context) error {
+				initVerboseLog(c)
+
 				allprocs := c.Bool("allprocs")
 				alpha := c.Int("alpha")
 				if alpha < 0 || 100 < alpha {
@@ -253,6 +272,8 @@ func main() {
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
 			Action: func(c *cli.Context) error {
+				initVerboseLog(c)
+
 				allprocs := c.Bool("allprocs")
 
 				return runRecover(allprocs)
@@ -340,12 +361,16 @@ func runTemp(target string, alpha int, allprocs bool) error {
 		root := makeZOrderGraph(w, wins)
 		level := filterGraphOverwrapping(root, w)
 
+		verbose.Println(root.Window.Title)
+
 		curr := root
 		for {
 			curr = curr.Prev
 			if curr == nil {
 				break
 			}
+
+			verbose.Println(root.Window.Title)
 
 			setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
 			level--
@@ -391,12 +416,16 @@ wachLoop:
 			root := makeZOrderGraph(w, wins)
 			level := filterGraphOverwrapping(root, w)
 
+			verbose.Println(root.Window.Title)
+
 			curr := root
 			for {
 				curr = curr.Prev
 				if curr == nil {
 					break
 				}
+
+				verbose.Printf("  %s", curr.Window.Title)
 
 				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
 
