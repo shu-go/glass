@@ -621,5 +621,5 @@ func recoverAlpha(wins []*Window) {
 }
 
 func alphaFromPercent(percent, level int) uintptr {
-	return uintptr(255 * math.Pow(float64(100-percent)/100, float64(level)))
+	return uintptr(255 * math.Pow(float64(100-percent)/100, math.Pow(float64(level), 2)))
 }
