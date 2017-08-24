@@ -577,7 +577,7 @@ func setAnimatedAlpha(hwnd syscall.Handle, alpha uintptr, timeout, wait time.Dur
 		style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
 		setWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE, style|WS_EX_LAYERED)
 
-		currAlpha := 255
+		var currAlpha uintptr = 255
 		{
 			var flag uintptr
 			result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&currAlpha)), uintptr(unsafe.Pointer(&flag)))
@@ -594,7 +594,10 @@ func setAnimatedAlpha(hwnd syscall.Handle, alpha uintptr, timeout, wait time.Dur
 				return false
 			})
 		}
-		setLayeredWindowAttributes.Call(uintptr(hwnd), 0, alpha, LWA_ALPHA)
+
+		if currAlpha != alpha {
+			setLayeredWindowAttributes.Call(uintptr(hwnd), 0, alpha, LWA_ALPHA)
+		}
 	}
 }
 
