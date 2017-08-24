@@ -11,6 +11,8 @@ import (
 	"time"
 	"unsafe"
 
+	"bitbucket.org/shu/retry"
+
 	//"golang.org/x/sys/windows"
 	//"github.com/golang/sys/windows"
 
@@ -200,7 +202,11 @@ func runTemp(target string, alpha int, allprocs bool) error {
 
 			verbose.Println(root.Window.Title)
 
-			setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+			if curr.Prev == nil {
+				setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, level), 200*time.Millisecond, 50*time.Millisecond)
+			} else {
+				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+			}
 			level--
 		}
 	}
@@ -261,7 +267,12 @@ wachLoop:
 
 				verbose.Printf("  %s", curr.Window.Title)
 
-				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+				if curr.Prev == nil {
+					setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, level), 200*time.Millisecond, 50*time.Millisecond)
+				} else {
+					setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+				}
+
 				needclear = true
 
 				idx := -1
@@ -552,6 +563,37 @@ func setAlpha(hwnd syscall.Handle, alpha uintptr) {
 	} else {
 		style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
 		setWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE, style|WS_EX_LAYERED)
+		setLayeredWindowAttributes.Call(uintptr(hwnd), 0, alpha, LWA_ALPHA)
+	}
+}
+
+func setAnimatedAlpha(hwnd syscall.Handle, alpha uintptr, timeout, wait time.Duration) {
+	if alpha == 255 {
+		setLayeredWindowAttributes.Call(uintptr(hwnd), 0, 255, LWA_ALPHA)
+		style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
+		// clear WS_EX_LAYERED bit
+		setWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE, style&^WS_EX_LAYERED)
+	} else {
+		style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
+		setWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE, style|WS_EX_LAYERED)
+
+		currAlpha := 255
+		{
+			var flag uintptr
+			result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&currAlpha)), uintptr(unsafe.Pointer(&flag)))
+			if result == 0 || flag&LWA_ALPHA == 0 {
+				currAlpha = 255
+			}
+		}
+		if currAlpha == 255 {
+			var ca uintptr = 255
+			times := uintptr(math.Max(1, float64(int(timeout/wait))))
+			retry.Wait(200*time.Millisecond, 50*time.Millisecond, func() bool {
+				setLayeredWindowAttributes.Call(uintptr(hwnd), 0, ca, LWA_ALPHA)
+				ca -= (255 - alpha) / times
+				return false
+			})
+		}
 		setLayeredWindowAttributes.Call(uintptr(hwnd), 0, alpha, LWA_ALPHA)
 	}
 }
