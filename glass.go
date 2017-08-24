@@ -248,6 +248,10 @@ wachLoop:
 			root := makeZOrderGraph(w, wins)
 			level := filterGraphOverwrapping(root, w)
 
+			if root.Prev != nil {
+				verbose.Print(root.Window.Title)
+			}
+
 			curr := root
 			for {
 				curr = curr.Prev
