@@ -265,7 +265,7 @@ wachLoop:
 					break
 				}
 
-				verbose.Printf("  %s", curr.Window.Title)
+				verbose.Print(" ", curr.Window.Title)
 
 				if curr.Prev == nil {
 					setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, level), 200*time.Millisecond, 50*time.Millisecond)
