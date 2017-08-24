@@ -532,7 +532,7 @@ func filterGraphOverwrapping(curr *WinNode, tgt *Window) int {
 		prev.Window.Rect.Top <= tr.Bottom && tr.Top <= prev.Window.Rect.Bottom
 	isvisible, _, _ := isWindowVisible.Call(uintptr(prev.Window.Handle))
 
-	if isoverwrapping && isvisible != 0 && prev.Window.PID != tgt.PID {
+	if isoverwrapping && isvisible != 0 {
 		// ok
 		return filterGraphOverwrapping(prev, tgt) + 1
 	} else {
