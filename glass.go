@@ -162,6 +162,7 @@ func runList(target string, allprocs bool) error {
 
 		root := makeZOrderGraph(w, wins)
 		filterGraphOverwrapping(root, w)
+
 		curr := root
 		for {
 			curr = curr.Prev
@@ -227,6 +228,10 @@ func runWatch(target string, interval time.Duration, alpha int, allprocs bool) e
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, os.Interrupt)
 
 	var wins []*Window //save for listAllWindows() and recoverAlpha()
+
+	var clswins []*Window
+	needclear := false
+
 wachLoop:
 	for {
 		var err error
@@ -236,14 +241,12 @@ wachLoop:
 		}
 
 		tgtwins := filterWindowsByTitle(wins, target)
-		subtract := make([]*Window, 0, len(wins))
-		copy(subtract, wins)
+		clswins = clswins[:0]
+		clswins = append(clswins, wins...)
 
 		for _, w := range tgtwins {
 			root := makeZOrderGraph(w, wins)
 			level := filterGraphOverwrapping(root, w)
-
-			verbose.Println(root.Window.Title)
 
 			curr := root
 			for {
@@ -255,23 +258,30 @@ wachLoop:
 				verbose.Printf("  %s", curr.Window.Title)
 
 				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+				needclear = true
 
 				idx := -1
-				for i, s := range subtract {
+				for i, s := range clswins {
 					if s.Handle == curr.Window.Handle {
 						idx = i
 					}
 				}
 				if idx != -1 {
-					subtract = append(subtract[:idx], subtract[idx+1:]...)
+					clswins = append(clswins[:idx], clswins[idx+1:]...)
 				}
 
 				level--
 			}
 		}
 
-		for _, w := range subtract {
-			setAlpha(w.Handle, 255)
+		if needclear {
+			for _, w := range clswins {
+				setAlpha(w.Handle, 255)
+			}
+		}
+
+		if len(clswins) == len(wins) {
+			needclear = false
 		}
 
 		select {
@@ -507,7 +517,7 @@ func filterGraphOverwrapping(curr *WinNode, tgt *Window) int {
 		prev.Window.Rect.Top <= tr.Bottom && tr.Top <= prev.Window.Rect.Bottom
 	isvisible, _, _ := isWindowVisible.Call(uintptr(prev.Window.Handle))
 
-	if isoverwrapping && isvisible != 0 {
+	if isoverwrapping && isvisible != 0 && prev.Window.PID != tgt.PID {
 		// ok
 		return filterGraphOverwrapping(prev, tgt) + 1
 	} else {
