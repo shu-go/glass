@@ -18,6 +18,10 @@ import (
 	"github.com/urfave/cli"
 )
 
+const (
+	defaultAlphaPercent = 15
+)
+
 var (
 	verbose = log.New(ioutil.Discard)
 )
@@ -43,7 +47,7 @@ func main() {
 			Usage: "run constantly",
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "target, t", Usage: "target title"},
-				cli.IntFlag{Name: "alpha, a", Value: 50, Usage: "alpha by % (0 for unseen)"},
+				cli.IntFlag{Name: "alpha, a", Value: defaultAlphaPercent, Usage: "alpha by % (0 for unseen)"},
 				cli.DurationFlag{Name: "interval, i", Value: 1 * time.Second, Usage: "watch interval"},
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
@@ -53,7 +57,7 @@ func main() {
 				allprocs := c.Bool("allprocs")
 				alpha := c.Int("alpha")
 				if alpha < 0 || 100 < alpha {
-					alpha = 50
+					alpha = defaultAlphaPercent
 				}
 				interval := c.Duration("interval")
 				target := c.String("target")
