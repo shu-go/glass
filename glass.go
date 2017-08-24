@@ -300,12 +300,12 @@ wachLoop:
 		}
 
 		select {
+		case <-time.After(interval):
+			continue
 		case <-signalChan:
 			break wachLoop
-		default:
 		}
 
-		time.Sleep(interval)
 	}
 
 	wins, _ = listAllWindows(allprocs, wins)
