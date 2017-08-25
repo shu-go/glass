@@ -40,7 +40,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "glass"
 	app.Usage = "make overwrapping windows be transparent"
-	app.Version = "0.2.0"
+	app.Version = "0.3.0"
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{Name: "verbose", Usage: "verbose output to stderr"},
 	}
