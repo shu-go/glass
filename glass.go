@@ -238,7 +238,7 @@ func runWatch(target string, interval time.Duration, alpha int, allprocs bool) e
 	var clswins []*Window
 	needclear := false
 
-	lastFG, _, _ := getForegroundWindow.Call()
+	var lastFG uintptr
 
 wachLoop:
 	for {
