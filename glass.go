@@ -503,7 +503,7 @@ func (n *WinNode) dump() string {
 		return ""
 	}
 
-	return fmt.Sprintf("%v\n%v", n.Window.dump(), n.Prev.dump())
+	return fmt.Sprintf("%v%v", n.Window.dump(), n.Prev.dump())
 }
 
 func (w *Window) dump() string {
