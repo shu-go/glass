@@ -514,18 +514,21 @@ func (w *Window) dump() string {
 }
 
 func makeZOrderGraph(tgt *Window, all []*Window) *WinNode {
-	curr := &WinNode{Window: tgt, Prev: nil}
-	concatPrevZOrderNode(curr, all)
-	return curr
-}
+	dict := makeHWND2WindowDict(all)
 
-func concatPrevZOrderNode(curr *WinNode, all []*Window) {
-	for _, w := range all {
-		if w.Handle == curr.Window.ZPrevHandle {
-			curr.Prev = &WinNode{Window: w, Prev: nil}
-			concatPrevZOrderNode(curr.Prev, all)
+	root := &WinNode{Window: tgt, Prev: nil}
+
+	curr := root
+	for {
+		if p, found := dict[curr.Window.ZPrevHandle]; found {
+			curr.Prev = &WinNode{Window: p, Prev: nil}
+			curr = curr.Prev
+		} else {
+			break
 		}
 	}
+
+	return root
 }
 
 func filterGraphOverwrapping(curr *WinNode, tgt *Window) int {
