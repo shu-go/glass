@@ -529,6 +529,11 @@ func filterGraphOverwrapping(curr *WinNode, tgt *Window) int {
 	tr := tgt.Rect
 	prev := curr.Prev
 
+	tr.Left += (tr.Right - tr.Left) / 10
+	tr.Top += (tr.Bottom - tr.Top) / 10
+	tr.Right -= (tr.Right - tr.Left) / 10
+	tr.Bottom -= (tr.Bottom - tr.Top) / 10
+
 	isoverwrapping := prev.Window.Rect.Left <= tr.Right && tr.Left <= prev.Window.Rect.Right &&
 		prev.Window.Rect.Top <= tr.Bottom && tr.Top <= prev.Window.Rect.Bottom
 	isvisible, _, _ := isWindowVisible.Call(uintptr(prev.Window.Handle))
