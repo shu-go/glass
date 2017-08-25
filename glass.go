@@ -252,7 +252,8 @@ wachLoop:
 
 		for _, w := range tgtwins {
 			root := makeZOrderGraph(w, wins)
-			level := filterGraphOverwrapping(root, w)
+			filterGraphOverwrapping(root, w)
+			weightGraph(root)
 
 			if root.Prev != nil {
 				verbose.Print(root.Window.Title)
@@ -265,12 +266,13 @@ wachLoop:
 					break
 				}
 
-				verbose.Print(" ", curr.Window.Title)
+				verbose.Print(" ", curr.Window.Title, alphaFromPercent(alpha, curr.Weight))
 
 				if curr.Prev == nil {
-					setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, level), 200*time.Millisecond, 50*time.Millisecond)
+					setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, curr.Weight), 200*time.Millisecond, 50*time.Millisecond)
+					//setAlpha(curr.Window.Handle, alphaFromPercent(alpha, curr.Weight))
 				} else {
-					setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+					setAlpha(curr.Window.Handle, alphaFromPercent(alpha, curr.Weight))
 				}
 
 				needclear = true
@@ -284,8 +286,6 @@ wachLoop:
 				if idx != -1 {
 					clswins = append(clswins[:idx], clswins[idx+1:]...)
 				}
-
-				level--
 			}
 		}
 
@@ -333,11 +333,17 @@ type (
 		Rect        Rect
 		OrgAlpha    int
 	}
+	WinNode struct {
+		Window *Window
+		Prev   *WinNode
+		Weight int
+	}
 )
 
 var (
 	user32                   = syscall.NewLazyDLL("user32.dll")
 	isWindow                 = user32.NewProc("IsWindow")
+	getForegroundWindow      = user32.NewProc("GetForegroundWindow")
 	enumWindows              = user32.NewProc("EnumWindows")
 	getWindowText            = user32.NewProc("GetWindowTextW")
 	getWindowTextLength      = user32.NewProc("GetWindowTextLengthW")
@@ -485,11 +491,6 @@ func filterWindowsByTitle(wins []*Window, filter string) []*Window {
 	return results
 }
 
-type WinNode struct {
-	Window *Window
-	Prev   *WinNode
-}
-
 func (n *WinNode) dump() string {
 	if n == nil {
 		return ""
@@ -540,6 +541,25 @@ func filterGraphOverwrapping(curr *WinNode, tgt *Window) int {
 		curr.Prev = prev.Prev
 		return filterGraphOverwrapping(curr, tgt)
 	}
+}
+
+func weightGraph(root *WinNode) {
+	fg, _, _ := getForegroundWindow.Call()
+
+	weightGraphInner(root.Prev, syscall.Handle(fg), 1)
+}
+
+func weightGraphInner(curr *WinNode, fg syscall.Handle, gain int) int {
+	if curr == nil {
+		return 1
+	}
+
+	if curr.Window.Handle == fg || gain == 0 {
+		curr.Weight = 1
+		return weightGraphInner(curr.Prev, fg, 0)
+	}
+	curr.Weight = weightGraphInner(curr.Prev, fg, 1) + gain
+	return curr.Weight
 }
 
 func makeHWND2WindowDict(wins []*Window) map[syscall.Handle]*Window {
