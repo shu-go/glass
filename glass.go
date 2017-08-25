@@ -583,10 +583,13 @@ func setAlpha(hwnd syscall.Handle, alpha uintptr) {
 	if alpha == 255 {
 		var currAlpha uintptr = 255
 		{
-			var flag uintptr
-			result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&currAlpha)), uintptr(unsafe.Pointer(&flag)))
-			if result == 0 || flag&LWA_ALPHA == 0 {
-				currAlpha = 255
+			style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
+			if style&WS_EX_LAYERED != 0 {
+				var flag uintptr
+				result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&currAlpha)), uintptr(unsafe.Pointer(&flag)))
+				if result == 0 || flag&LWA_ALPHA == 0 {
+					currAlpha = 255
+				}
 			}
 		}
 		if currAlpha != 255 {
@@ -604,10 +607,7 @@ func setAlpha(hwnd syscall.Handle, alpha uintptr) {
 
 func setAnimatedAlpha(hwnd syscall.Handle, alpha uintptr, timeout, wait time.Duration) {
 	if alpha == 255 {
-		setLayeredWindowAttributes.Call(uintptr(hwnd), 0, 255, LWA_ALPHA)
-		style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
-		// clear WS_EX_LAYERED bit
-		setWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE, style&^WS_EX_LAYERED)
+		setAlpha(hwnd, alpha)
 	} else {
 		style, _, _ := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
 		setWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE, style|WS_EX_LAYERED)
