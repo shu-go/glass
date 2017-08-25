@@ -519,7 +519,16 @@ func makeZOrderGraph(tgt *Window, all []*Window) *WinNode {
 	root := &WinNode{Window: tgt, Prev: nil}
 
 	curr := root
+	i := 0
 	for {
+		i++
+		if i > 200 {
+			verbose.Print(i, curr.Window.dump(), curr.Window.ZPrevHandle)
+			if i > 250 {
+				return root
+			}
+		}
+
 		if p, found := dict[curr.Window.ZPrevHandle]; found {
 			curr.Prev = &WinNode{Window: p, Prev: nil}
 			curr = curr.Prev
