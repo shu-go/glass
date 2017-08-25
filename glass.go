@@ -11,6 +11,7 @@ import (
 	"time"
 	"unsafe"
 
+	"bitbucket.org/shu/elapsed"
 	"bitbucket.org/shu/retry"
 
 	//"golang.org/x/sys/windows"
@@ -203,7 +204,8 @@ func runTemp(target string, alpha int, allprocs bool) error {
 			verbose.Println(root.Window.Title)
 
 			if curr.Prev == nil {
-				setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, level), 200*time.Millisecond, 50*time.Millisecond)
+				//setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, level), 200*time.Millisecond, 50*time.Millisecond)
+				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
 			} else {
 				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
 			}
@@ -236,7 +238,6 @@ func runWatch(target string, interval time.Duration, alpha int, allprocs bool) e
 	var wins []*Window //save for listAllWindows() and recoverAlpha()
 
 	var clswins []*Window
-	needclear := false
 
 	var lastFG uintptr
 
@@ -255,24 +256,33 @@ wachLoop:
 		}
 		lastFG = currFG
 
+		verbose.Print("========== start ==========")
+		tm := elapsed.Start()
+
 		var err error
 		wins, err = listAllWindows(allprocs, wins)
 		if err != nil {
 			return err
 		}
+		verbose.Print("listed windows", tm.Elapsed())
 
 		tgtwins := filterWindowsByTitle(wins, target)
 		clswins = clswins[:0]
 		clswins = append(clswins, wins...)
 
-		for _, w := range tgtwins {
-			root := makeZOrderGraph(w, wins)
-			filterGraphOverwrapping(root, w)
-			weightGraph(root)
+		verbose.Print("target filtered", tm.Elapsed())
 
-			if root.Prev != nil {
-				verbose.Print(root.Window.Title)
-			}
+		alpnodes := make(map[syscall.Handle]*WinNode)
+
+		for _, w := range tgtwins {
+			verbose.Print("tgtwins loop start", tm.Elapsed())
+			root := makeZOrderGraph(w, wins)
+			verbose.Print("makeZOrderGraph", tm.Elapsed())
+
+			filterGraphOverwrapping(root, w)
+			verbose.Print("filterGraphOverwrapping", tm.Elapsed())
+			weightGraph(root)
+			verbose.Print("weightGraph", tm.Elapsed())
 
 			curr := root
 			for {
@@ -280,17 +290,13 @@ wachLoop:
 				if curr == nil {
 					break
 				}
-
-				verbose.Print(" ", curr.Window.Title, alphaFromPercent(alpha, curr.Weight))
-
-				if curr.Prev == nil {
-					setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, curr.Weight), 200*time.Millisecond, 50*time.Millisecond)
-					//setAlpha(curr.Window.Handle, alphaFromPercent(alpha, curr.Weight))
+				if an, found := alpnodes[curr.Window.Handle]; found {
+					if an.Weight < curr.Weight {
+						an.Weight = curr.Weight
+					}
 				} else {
-					setAlpha(curr.Window.Handle, alphaFromPercent(alpha, curr.Weight))
+					alpnodes[curr.Window.Handle] = curr
 				}
-
-				needclear = true
 
 				idx := -1
 				for i, s := range clswins {
@@ -302,17 +308,20 @@ wachLoop:
 					clswins = append(clswins[:idx], clswins[idx+1:]...)
 				}
 			}
+			verbose.Print("merge", tm.Elapsed())
 		}
+		verbose.Print("all merge end", tm.Elapsed())
 
-		if needclear {
-			for _, w := range clswins {
-				setAlpha(w.Handle, 255)
-			}
+		for h, n := range alpnodes {
+			setAlpha(h, alphaFromPercent(alpha, n.Weight))
 		}
+		verbose.Print("alpha", tm.Elapsed())
 
-		if len(clswins) == len(wins) {
-			needclear = false
+		for _, w := range clswins {
+			setAlpha(w.Handle, 255)
 		}
+		verbose.Print("cleared", tm.Elapsed())
+
 	}
 
 	wins, _ = listAllWindows(allprocs, wins)
