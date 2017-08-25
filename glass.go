@@ -238,8 +238,23 @@ func runWatch(target string, interval time.Duration, alpha int, allprocs bool) e
 	var clswins []*Window
 	needclear := false
 
+	lastFG, _, _ := getForegroundWindow.Call()
+
 wachLoop:
 	for {
+		select {
+		case <-time.After(interval):
+			//continue
+		case <-signalChan:
+			break wachLoop
+		}
+
+		currFG, _, _ := getForegroundWindow.Call()
+		if currFG == lastFG && currFG != 0 {
+			continue
+		}
+		lastFG = currFG
+
 		var err error
 		wins, err = listAllWindows(allprocs, wins)
 		if err != nil {
@@ -298,14 +313,6 @@ wachLoop:
 		if len(clswins) == len(wins) {
 			needclear = false
 		}
-
-		select {
-		case <-time.After(interval):
-			continue
-		case <-signalChan:
-			break wachLoop
-		}
-
 	}
 
 	wins, _ = listAllWindows(allprocs, wins)
