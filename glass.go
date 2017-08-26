@@ -51,7 +51,7 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "target, t", Usage: "target title"},
 				cli.IntFlag{Name: "alpha, a", Value: defaultAlphaPercent, Usage: "alpha by % (0 for unseen)"},
-				cli.DurationFlag{Name: "interval, i", Value: 1 * time.Second, Usage: "watch interval"},
+				cli.DurationFlag{Name: "interval, i", Value: 250 * time.Millisecond, Usage: "watch interval"},
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
 			Action: func(c *cli.Context) error {
