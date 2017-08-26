@@ -472,7 +472,7 @@ func listAllWindows(allprocs bool, orgWins []*Window) (wins []*Window, err error
 func filterWindowsByTitle(wins []*Window, filter string) []*Window {
 	var filters []string
 	{
-		ff := strings.Split(filter, " ")
+		ff := strings.Split(filter, "\n")
 		filters = make([]string, 0, len(ff))
 		for _, f := range ff {
 			filters = append(filters, strings.ToUpper(f))
