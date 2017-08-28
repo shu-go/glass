@@ -239,7 +239,8 @@ func runWatch(target string, interval time.Duration, alpha int, allprocs bool) e
 
 	var clswins []*Window
 
-	var lastFG uintptr
+	var lastFG, currFG uintptr
+	var lastRect, currRect Rect
 
 wachLoop:
 	for {
@@ -250,11 +251,15 @@ wachLoop:
 			break wachLoop
 		}
 
-		currFG, _, _ := getForegroundWindow.Call()
-		if currFG == lastFG && currFG != 0 {
+		currFG, _, _ = getForegroundWindow.Call()
+		if result, _, _ := getWindowRect.Call(uintptr(currFG), uintptr(unsafe.Pointer(&currRect))); result == 0 {
+			currRect = Rect{}
+		}
+		if (currFG == lastFG && currFG != 0) && (currRect == lastRect) {
 			continue
 		}
 		lastFG = currFG
+		lastRect = currRect
 
 		verbose.Print("========== start ==========")
 		tm := elapsed.Start()
