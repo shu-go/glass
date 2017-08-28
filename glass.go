@@ -332,7 +332,11 @@ wachLoop:
 		verbose.Print("all merge end", tm.Elapsed())
 
 		for h, n := range alpnodes {
-			setAlpha(h, alphaFromPercent(alpha, n.Weight, curve))
+			if uintptr(h) == currFG {
+				setAnimatedAlpha(h, alphaFromPercent(alpha, n.Weight, curve), 200*time.Millisecond, 50*time.Millisecond)
+			} else {
+				setAlpha(h, alphaFromPercent(alpha, n.Weight, curve))
+			}
 		}
 		verbose.Print("alpha", tm.Elapsed())
 
@@ -673,10 +677,10 @@ func setAnimatedAlpha(hwnd syscall.Handle, alpha uintptr, timeout, wait time.Dur
 				currAlpha = 255
 			}
 		}
-		if currAlpha == 255 {
+		if currAlpha != alpha {
 			var ca uintptr = 255
 			times := uintptr(math.Max(1, float64(int(timeout/wait))))
-			retry.Wait(200*time.Millisecond, 50*time.Millisecond, func() bool {
+			retry.Wait(timeout, wait, func() bool {
 				setLayeredWindowAttributes.Call(uintptr(hwnd), 0, ca, LWA_ALPHA)
 				ca -= (255 - alpha) / times
 				return false
