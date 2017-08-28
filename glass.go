@@ -393,6 +393,7 @@ var (
 	getWindowLong              = user32.NewProc("GetWindowLongW")
 	setWindowLong              = user32.NewProc("SetWindowLongW")
 	isWindowVisible            = user32.NewProc("IsWindowVisible")
+	isIconic                   = user32.NewProc("IsIconic")
 
 	kernel32 = syscall.NewLazyDLL("kernel32.dll")
 	//-> use windows.XXX
@@ -507,7 +508,11 @@ func filterWindowsByTitle(wins []*Window, filter string) []*Window {
 			continue
 		}
 
-		if isvisible, _, _ := isWindowVisible.Call(uintptr(w.Handle)); isvisible == 0 {
+		if visible, _, _ := isWindowVisible.Call(uintptr(w.Handle)); visible == 0 {
+			continue
+		}
+
+		if iconic, _, _ := isIconic.Call(uintptr(w.Handle)); iconic != 0 {
 			continue
 		}
 
@@ -581,11 +586,12 @@ func filterGraphOverwrapping(curr *WinNode, tgt *Window) int {
 	tr.Right -= (tr.Right - tr.Left) / 10
 	tr.Bottom -= (tr.Bottom - tr.Top) / 10
 
-	isoverwrapping := prev.Window.Rect.Left <= tr.Right && tr.Left <= prev.Window.Rect.Right &&
+	overwrapping := prev.Window.Rect.Left <= tr.Right && tr.Left <= prev.Window.Rect.Right &&
 		prev.Window.Rect.Top <= tr.Bottom && tr.Top <= prev.Window.Rect.Bottom
-	isvisible, _, _ := isWindowVisible.Call(uintptr(prev.Window.Handle))
+	visible, _, _ := isWindowVisible.Call(uintptr(prev.Window.Handle))
+	iconic, _, _ := isIconic.Call(uintptr(prev.Window.Handle))
 
-	if isoverwrapping && isvisible != 0 {
+	if overwrapping && visible != 0 && iconic == 0 {
 		// ok
 		return filterGraphOverwrapping(prev, tgt) + 1
 	} else {
