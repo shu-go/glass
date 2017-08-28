@@ -23,6 +23,7 @@ import (
 
 const (
 	defaultAlphaPercent = 15
+	defaultAlphaCurve   = 2
 )
 
 var (
@@ -51,6 +52,7 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "target, t", Usage: "target title"},
 				cli.IntFlag{Name: "alpha, a", Value: defaultAlphaPercent, Usage: "alpha by % (0 for unseen)"},
+				cli.Float64Flag{Name: "curve, c", Value: defaultAlphaCurve, Usage: "alpha curve (power)"},
 				cli.DurationFlag{Name: "interval, i", Value: 250 * time.Millisecond, Usage: "watch interval"},
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
@@ -61,6 +63,10 @@ func main() {
 				alpha := c.Int("alpha")
 				if alpha < 0 || 100 < alpha {
 					alpha = defaultAlphaPercent
+				}
+				curve := c.Float64("curve")
+				if curve < 1.0 || 3.0 < curve {
+					curve = defaultAlphaCurve
 				}
 				interval := c.Duration("interval")
 				target := c.String("target")
@@ -74,7 +80,7 @@ func main() {
 					return fmt.Errorf("target missing")
 				}
 
-				return runWatch(target, interval, alpha, allprocs)
+				return runWatch(target, interval, alpha, curve, allprocs)
 			},
 		},
 		{
@@ -109,6 +115,7 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "target, t", Usage: "target title"},
 				cli.IntFlag{Name: "alpha, a", Value: 50, Usage: "alpha by % (0 for unseen)"},
+				cli.Float64Flag{Name: "curve, c", Value: defaultAlphaCurve, Usage: "alpha curve (power)"},
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
 			Action: func(c *cli.Context) error {
@@ -118,6 +125,10 @@ func main() {
 				alpha := c.Int("alpha")
 				if alpha < 0 || 100 < alpha {
 					alpha = 50
+				}
+				curve := c.Float64("curve")
+				if curve < 1.0 || 3.0 < curve {
+					curve = defaultAlphaCurve
 				}
 				target := c.String("target")
 				for _, v := range c.Args() {
@@ -130,7 +141,7 @@ func main() {
 					return fmt.Errorf("target missing")
 				}
 
-				return runTemp(target, alpha, allprocs)
+				return runTemp(target, alpha, curve, allprocs)
 			},
 		},
 		{
@@ -180,7 +191,7 @@ func runList(target string, allprocs bool) error {
 	return nil
 }
 
-func runTemp(target string, alpha int, allprocs bool) error {
+func runTemp(target string, alpha int, curve float64, allprocs bool) error {
 	wins, err := listAllWindows(allprocs, nil)
 	if err != nil {
 		return err
@@ -205,9 +216,9 @@ func runTemp(target string, alpha int, allprocs bool) error {
 
 			if curr.Prev == nil {
 				//setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, level), 200*time.Millisecond, 50*time.Millisecond)
-				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level, curve))
 			} else {
-				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level))
+				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level, curve))
 			}
 			level--
 		}
@@ -229,7 +240,7 @@ func runRecover(allprocs bool) error {
 	return nil
 }
 
-func runWatch(target string, interval time.Duration, alpha int, allprocs bool) error {
+func runWatch(target string, interval time.Duration, alpha int, curve float64, allprocs bool) error {
 	fmt.Println("Press Ctrl+C to cancel.")
 
 	signalChan := make(chan os.Signal, 1)
@@ -276,6 +287,9 @@ wachLoop:
 		clswins = append(clswins, wins...)
 
 		verbose.Print("target filtered", tm.Elapsed())
+		for _, w := range tgtwins {
+			verbose.Printf("  - %s", w.Title)
+		}
 
 		alpnodes := make(map[syscall.Handle]*WinNode)
 
@@ -318,7 +332,7 @@ wachLoop:
 		verbose.Print("all merge end", tm.Elapsed())
 
 		for h, n := range alpnodes {
-			setAlpha(h, alphaFromPercent(alpha, n.Weight))
+			setAlpha(h, alphaFromPercent(alpha, n.Weight, curve))
 		}
 		verbose.Print("alpha", tm.Elapsed())
 
@@ -691,6 +705,6 @@ func recoverAlpha(wins []*Window) {
 	}
 }
 
-func alphaFromPercent(percent, level int) uintptr {
-	return uintptr(255 * math.Pow(float64(100-percent)/100, math.Pow(float64(level), 2)))
+func alphaFromPercent(percent, level int, curve float64) uintptr {
+	return uintptr(255 * math.Pow(float64(100-percent)/100, math.Pow(float64(level), curve)))
 }
