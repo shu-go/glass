@@ -337,11 +337,6 @@ type (
 		Rect        Rect
 		OrgAlpha    int
 	}
-	WinNode struct {
-		Window *Window
-		Prev   *WinNode
-		Weight int
-	}
 )
 
 var (
@@ -500,14 +495,6 @@ func filterWindowsByTitle(wins []*Window, filter string) []*Window {
 	return results
 }
 
-func (n *WinNode) dump() string {
-	if n == nil {
-		return ""
-	}
-
-	return fmt.Sprintf("%v%v", n.Window.dump(), n.Prev.dump())
-}
-
 func (w *Window) dump() string {
 	if w == nil {
 		return ""
@@ -603,80 +590,6 @@ func isWindowOverwrapping(w1, w2 *Window) bool {
 		visible1 != 0 && iconic1 == 0 &&
 		visible2 != 0 && iconic2 == 0 &&
 		style1&WS_EX_TOOLWINDOW == 0
-}
-
-func makeZOrderGraph(tgt *Window, all []*Window) *WinNode {
-	dict := makeHWND2WindowDict(all)
-
-	root := &WinNode{Window: tgt, Prev: nil}
-
-	curr := root
-	i := 0
-	for {
-		i++
-		if i > 200 {
-			verbose.Print(i, curr.Window.dump(), curr.Window.ZPrevHandle)
-			if i > 250 {
-				return root
-			}
-		}
-
-		if p, found := dict[curr.Window.ZPrevHandle]; found {
-			curr.Prev = &WinNode{Window: p, Prev: nil}
-			curr = curr.Prev
-		} else {
-			break
-		}
-	}
-
-	return root
-}
-
-func filterGraphOverwrapping(curr *WinNode, tgt *Window) int {
-	if curr == nil || curr.Prev == nil {
-		return 0
-	}
-
-	tr := tgt.Rect
-	prev := curr.Prev
-
-	tr.Left += (tr.Right - tr.Left) / 10
-	tr.Top += (tr.Bottom - tr.Top) / 10
-	tr.Right -= (tr.Right - tr.Left) / 10
-	tr.Bottom -= (tr.Bottom - tr.Top) / 10
-
-	overwrapping := prev.Window.Rect.Left <= tr.Right && tr.Left <= prev.Window.Rect.Right &&
-		prev.Window.Rect.Top <= tr.Bottom && tr.Top <= prev.Window.Rect.Bottom
-	visible, _, _ := isWindowVisible.Call(uintptr(prev.Window.Handle))
-	iconic, _, _ := isIconic.Call(uintptr(prev.Window.Handle))
-
-	if overwrapping && visible != 0 && iconic == 0 {
-		// ok
-		return filterGraphOverwrapping(prev, tgt) + 1
-	} else {
-		// cut
-		curr.Prev = prev.Prev
-		return filterGraphOverwrapping(curr, tgt)
-	}
-}
-
-func weightGraph(root *WinNode) {
-	fg, _, _ := getForegroundWindow.Call()
-
-	weightGraphInner(root.Prev, syscall.Handle(fg), 1)
-}
-
-func weightGraphInner(curr *WinNode, fg syscall.Handle, gain int) int {
-	if curr == nil {
-		return 1
-	}
-
-	if curr.Window.Handle == fg || gain == 0 {
-		curr.Weight = 1
-		return weightGraphInner(curr.Prev, fg, 0)
-	}
-	curr.Weight = weightGraphInner(curr.Prev, fg, 1) + gain
-	return curr.Weight
 }
 
 func makeHWND2WindowDict(wins []*Window) map[syscall.Handle]*Window {
