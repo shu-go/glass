@@ -171,20 +171,11 @@ func runList(target string, allprocs bool) error {
 
 	tgtwins := filterWindowsByTitle(wins, target)
 
-	for _, w := range tgtwins {
-		fmt.Printf("%s\n", w.Title)
-
-		root := makeZOrderGraph(w, wins)
-		filterGraphOverwrapping(root, w)
-
-		curr := root
-		for {
-			curr = curr.Prev
-			if curr == nil {
-				break
-			}
-
-			fmt.Printf("  %s\n", curr.Window.Title)
+	z := makeZOrderedList(tgtwins, wins)
+	for depth, wins := range z {
+		fmt.Printf("---- %d ----\n", depth)
+		for _, w := range wins {
+			fmt.Printf("  %s(%s)\n", w.Title, w.PID)
 		}
 	}
 
@@ -199,31 +190,21 @@ func runTemp(target string, alpha int, curve float64, allprocs bool) error {
 
 	tgtwins := filterWindowsByTitle(wins, target)
 
-	for _, w := range tgtwins {
-		root := makeZOrderGraph(w, wins)
-		level := filterGraphOverwrapping(root, w)
+	z := makeZOrderedList(tgtwins, wins)
+	level := len(z) - 1
 
-		verbose.Println(root.Window.Title)
-
-		curr := root
-		for {
-			curr = curr.Prev
-			if curr == nil {
-				break
-			}
-
-			verbose.Println(root.Window.Title)
-
-			if curr.Prev == nil {
-				//setAnimatedAlpha(curr.Window.Handle, alphaFromPercent(alpha, level), 200*time.Millisecond, 50*time.Millisecond)
-				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level, curve))
-			} else {
-				setAlpha(curr.Window.Handle, alphaFromPercent(alpha, level, curve))
-			}
-			level--
+	for depth, alpwins := range z {
+		if depth == 0 {
+			continue
 		}
-	}
 
+		verbose.Printf("---- %d ----\n", depth)
+		for _, w := range alpwins {
+			verbose.Printf("  %s\n", w.Title)
+			setAlpha(w.Handle, alphaFromPercent(alpha, level, curve))
+		}
+		level--
+	}
 	return nil
 }
 
@@ -288,38 +269,31 @@ wachLoop:
 
 		verbose.Print("target filtered", tm.Elapsed())
 		for _, w := range tgtwins {
-			verbose.Printf("  - %s", w.Title)
+			verbose.Printf("* %s", w.Title)
 		}
 
-		alpnodes := make(map[syscall.Handle]*WinNode)
+		//
 
-		for _, w := range tgtwins {
-			verbose.Print("tgtwins loop start", tm.Elapsed())
-			root := makeZOrderGraph(w, wins)
-			verbose.Print("makeZOrderGraph", tm.Elapsed())
+		z := makeZOrderedList(tgtwins, wins)
+		level := len(z) - 1
 
-			filterGraphOverwrapping(root, w)
-			verbose.Print("filterGraphOverwrapping", tm.Elapsed())
-			weightGraph(root)
-			verbose.Print("weightGraph", tm.Elapsed())
+		for depth, alpwins := range z {
+			if depth == 0 {
+				continue
+			}
 
-			curr := root
-			for {
-				curr = curr.Prev
-				if curr == nil {
-					break
-				}
-				if an, found := alpnodes[curr.Window.Handle]; found {
-					if an.Weight < curr.Weight {
-						an.Weight = curr.Weight
-					}
+			verbose.Printf("---- %d (alpha=%d) ----\n", depth, alphaFromPercent(alpha, level, curve))
+			for _, w := range alpwins {
+				verbose.Printf("  %s (%d)\n", w.Title, w.PID)
+				if uintptr(w.Handle) == currFG {
+					setAnimatedAlpha(w.Handle, alphaFromPercent(alpha, level, curve), 200*time.Millisecond, 50*time.Millisecond)
 				} else {
-					alpnodes[curr.Window.Handle] = curr
+					setAlpha(w.Handle, alphaFromPercent(alpha, level, curve))
 				}
 
 				idx := -1
 				for i, s := range clswins {
-					if s.Handle == curr.Window.Handle {
+					if s.Handle == w.Handle {
 						idx = i
 					}
 				}
@@ -327,24 +301,13 @@ wachLoop:
 					clswins = append(clswins[:idx], clswins[idx+1:]...)
 				}
 			}
-			verbose.Print("merge", tm.Elapsed())
+			level--
 		}
-		verbose.Print("all merge end", tm.Elapsed())
-
-		for h, n := range alpnodes {
-			if uintptr(h) == currFG {
-				setAnimatedAlpha(h, alphaFromPercent(alpha, n.Weight, curve), 200*time.Millisecond, 50*time.Millisecond)
-			} else {
-				setAlpha(h, alphaFromPercent(alpha, n.Weight, curve))
-			}
-		}
-		verbose.Print("alpha", tm.Elapsed())
 
 		for _, w := range clswins {
 			setAlpha(w.Handle, 255)
 		}
 		verbose.Print("cleared", tm.Elapsed())
-
 	}
 
 	wins, _ = listAllWindows(allprocs, wins)
@@ -354,10 +317,12 @@ wachLoop:
 }
 
 const (
-	WS_EX_LAYERED = 0x80000
-	LWA_COLORKEY  = 0x1
-	LWA_ALPHA     = 0x2
-	GWL_EXSTYLE   = 0xFFFFFFEC
+	GWL_EXSTYLE      = 0xFFFFFFEC
+	WS_EX_TOOLWINDOW = 0x00000080
+	WS_EX_LAYERED    = 0x80000
+
+	LWA_COLORKEY = 0x1
+	LWA_ALPHA    = 0x2
 )
 
 type (
@@ -548,6 +513,96 @@ func (w *Window) dump() string {
 		return ""
 	}
 	return fmt.Sprintf("%q(HWND=%v, PID=%v) %#v", w.Title, w.Handle, w.PID, w.Rect)
+}
+
+func makeZOrderedList(tgts []*Window, all []*Window) [][]*Window {
+	dict := makeHWND2WindowDict(all)
+
+	// z ... background-to-foreground-ordered index
+	// [0] ... most background
+	// [1] ... one step foreground(prev)
+	z := make([][]*Window, 1)
+	z[0] = tgts[:]
+
+	for _, z0 := range z[0] {
+		curr := z0
+		i := 0
+		for {
+			// break inf loop
+			i++
+			if i > 200 {
+				verbose.Print(i, curr, curr.ZPrevHandle)
+				if i > 250 {
+					break
+				}
+			}
+
+			if prev, found := dict[curr.ZPrevHandle]; found {
+				if !isWindowOverwrapping(prev, z0) {
+					curr = prev
+					continue
+				}
+
+				depth := 1
+			depth:
+				for d, wins := range z {
+					if d == 0 {
+						continue
+					}
+
+					for _, w := range wins {
+						if prev.PID == w.PID {
+							curr = prev
+							continue
+						}
+
+						tiled := true
+						if isWindowOverwrapping(prev, w) {
+							depth = d + 1
+							tiled = false
+						}
+						if tiled {
+							break depth
+						}
+					}
+				}
+
+				if len(z) < depth+1 {
+					z = append(z, make([]*Window, 0))
+				}
+				z[depth] = append(z[depth], prev)
+
+				curr = prev
+			} else {
+				break
+			}
+
+		}
+	}
+
+	return z
+}
+
+func isWindowOverwrapping(w1, w2 *Window) bool {
+	w2.Rect.Left += (w2.Rect.Right - w2.Rect.Left) / 10
+	w2.Rect.Top += (w2.Rect.Bottom - w2.Rect.Top) / 10
+	w2.Rect.Right -= (w2.Rect.Right - w2.Rect.Left) / 10
+	w2.Rect.Bottom -= (w2.Rect.Bottom - w2.Rect.Top) / 10
+
+	overwrapping := w1.Rect.Left <= w2.Rect.Right && w2.Rect.Left <= w1.Rect.Right &&
+		w1.Rect.Top <= w2.Rect.Bottom && w2.Rect.Top <= w1.Rect.Bottom
+
+	visible1, _, _ := isWindowVisible.Call(uintptr(w1.Handle))
+	visible2, _, _ := isWindowVisible.Call(uintptr(w2.Handle))
+	iconic1, _, _ := isIconic.Call(uintptr(w1.Handle))
+	iconic2, _, _ := isIconic.Call(uintptr(w2.Handle))
+
+	style1, _, _ := getWindowLong.Call(uintptr(w2.Handle), GWL_EXSTYLE)
+
+	return overwrapping &&
+		visible1 != 0 && iconic1 == 0 &&
+		visible2 != 0 && iconic2 == 0 &&
+		style1&WS_EX_TOOLWINDOW == 0
 }
 
 func makeZOrderGraph(tgt *Window, all []*Window) *WinNode {
