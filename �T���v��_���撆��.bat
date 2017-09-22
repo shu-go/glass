@@ -1,5 +1,5 @@
 @echo off
-set DEFAULT=youtube ニコニコ ビデオ
+set DEFAULT=youtube ニコニコ ビデオ vlc
 
 set /p TGT=対象(省略時は、%DEFAULT%): 
 if "%TGT%" == "" (
