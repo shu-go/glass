@@ -637,6 +637,10 @@ func makeHWND2WindowDict(wins []*Window) map[syscall.Handle]*Window {
 }
 
 func setAlpha(hwnd syscall.Handle, alpha uintptr) {
+	if alpha == 0 {
+		alpha = 1
+	}
+
 	if alpha == 255 {
 		var currAlpha uintptr = 255
 		{
@@ -663,6 +667,10 @@ func setAlpha(hwnd syscall.Handle, alpha uintptr) {
 }
 
 func setAnimatedAlpha(hwnd syscall.Handle, alpha uintptr, timeout, wait time.Duration) {
+	if alpha == 0 {
+		alpha = 1
+	}
+
 	if alpha == 255 {
 		setAlpha(hwnd, alpha)
 	} else {
