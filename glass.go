@@ -54,6 +54,7 @@ func main() {
 				cli.IntFlag{Name: "alpha, a", Value: defaultAlphaPercent, Usage: "alpha by % (0 for unseen)"},
 				cli.Float64Flag{Name: "curve, c", Value: defaultAlphaCurve, Usage: "alpha curve (power)"},
 				cli.DurationFlag{Name: "interval, i", Value: 250 * time.Millisecond, Usage: "watch interval"},
+				cli.DurationFlag{Name: "timeout", Value: 0, Usage:"timeout of automatic recover"},
 				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
 			},
 			Action: func(c *cli.Context) error {
@@ -69,6 +70,7 @@ func main() {
 					curve = defaultAlphaCurve
 				}
 				interval := c.Duration("interval")
+				timeout := c.Duration("timeout")
 				target := c.String("target")
 				for _, v := range c.Args() {
 					if len(target) > 0 {
@@ -80,7 +82,7 @@ func main() {
 					return fmt.Errorf("target missing")
 				}
 
-				return runWatch(target, interval, alpha, curve, allprocs)
+				return runWatch(target, interval, alpha, curve, timeout, allprocs)
 			},
 		},
 		{
@@ -221,7 +223,7 @@ func runRecover(allprocs bool) error {
 	return nil
 }
 
-func runWatch(target string, interval time.Duration, alpha int, curve float64, allprocs bool) error {
+func runWatch(target string, interval time.Duration, alpha int, curve float64, timeout time.Duration, allprocs bool) error {
 	fmt.Println("Press Ctrl+C to cancel.")
 
 	signalChan := make(chan os.Signal, 1)
@@ -233,6 +235,13 @@ func runWatch(target string, interval time.Duration, alpha int, curve float64, a
 
 	var lastFG, currFG uintptr
 	var lastRect, currRect Rect
+
+	if timeout != 0 {
+		go func() {
+			time.Sleep(timeout)
+			signalChan <- os.Interrupt			
+		}()
+	}
 
 wachLoop:
 	for {
