@@ -2,13 +2,6 @@ package main
 
 import "fmt"
 
-/*
-	cli.StringFlag{Name: "target, t", Usage: "target title"},
-	cli.IntFlag{Name: "alpha, a", Value: 50, Usage: "alpha by % (0 for unseen)"},
-	cli.Float64Flag{Name: "curve, c", Value: defaultAlphaCurve, Usage: "alpha curve (power)"},
-	cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
-*/
-
 type tempCmd struct {
 	Target string  `cli:"target, t" help:"target title"`
 	Alpha  int     `cli:"alpha, a" help:"alpha by % (0 for unseen)"`

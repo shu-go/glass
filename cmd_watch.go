@@ -13,15 +13,6 @@ import (
 	"bitbucket.org/shu/rog"
 )
 
-/*
-	cli.StringFlag{Name: "target, t", Usage: "target title"},
-	cli.IntFlag{Name: "alpha, a", Value: defaultAlphaPercent, Usage: "alpha by % (0 for unseen)"},
-	cli.Float64Flag{Name: "curve, c", Value: defaultAlphaCurve, Usage: "alpha curve (power)"},
-	cli.DurationFlag{Name: "interval, i", Value: 250 * time.Millisecond, Usage: "watch interval"},
-	cli.DurationFlag{Name: "timeout", Value: 0, Usage: "timeout of automatic recover"},
-	cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
-*/
-
 type watchCmd struct {
 	Target   string       `cli:"target, t" help:"target title"`
 	Alpha    int          `cli:"alpha, a" help:"alpha by % (0 for unseen)"`
