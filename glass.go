@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"strings"
@@ -13,11 +12,6 @@ import (
 	"bitbucket.org/shu/gli"
 	"bitbucket.org/shu/retry"
 	"bitbucket.org/shu/rog"
-
-	//"golang.org/x/sys/windows"
-	//"github.com/golang/sys/windows"
-
-	"bitbucket.org/shu/log"
 )
 
 const (
@@ -26,7 +20,8 @@ const (
 )
 
 var (
-	verbose = log.New(ioutil.Discard)
+	verbose = rog.Discard
+	//verbose = log.New(ioutil.Discard)
 )
 
 type Global struct {
@@ -40,10 +35,9 @@ type Global struct {
 
 func (g Global) Before() {
 	if g.Verbose {
-		verbose = log.New(os.Stderr)
+		verbose = rog.New(os.Stderr, "", 0)
 		rog.EnableDebug()
 	}
-	verbose.SetFlags(log.NilHeader)
 }
 
 func main() {

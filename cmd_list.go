@@ -2,11 +2,6 @@ package main
 
 import "fmt"
 
-/*
-	cli.StringFlag{Name: "target, t", Usage: "target title"},
-	cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
-*/
-
 type listCmd struct {
 	Target string `cli:"target, t" help:"target title"`
 }
