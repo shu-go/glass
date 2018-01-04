@@ -5,20 +5,19 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
-	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
-	"bitbucket.org/shu/elapsed"
+	"bitbucket.org/shu/gli"
 	"bitbucket.org/shu/retry"
+	"bitbucket.org/shu/rog"
 
 	//"golang.org/x/sys/windows"
 	//"github.com/golang/sys/windows"
 
 	"bitbucket.org/shu/log"
-	"github.com/urfave/cli"
 )
 
 const (
@@ -30,299 +29,29 @@ var (
 	verbose = log.New(ioutil.Discard)
 )
 
-func initVerboseLog(c *cli.Context) {
-	if c.GlobalBool("verbose") {
+type Global struct {
+	Watch   watchCmd   `cli:"watch, w" help:"run constantly"`
+	List    listCmd    `cli:"list, ls" help:"list overwrapping windows"`
+	Temp    tempCmd    `help:"run once"`
+	Recover recoverCmd `help:"force all windows untransparent"`
+
+	Verbose bool `cli:"verbose, v" help:"verbose output to stderr"`
+}
+
+func (g Global) Before() {
+	if g.Verbose {
 		verbose = log.New(os.Stderr)
+		rog.EnableDebug()
 	}
 	verbose.SetFlags(log.NilHeader)
 }
 
 func main() {
-	app := cli.NewApp()
+	app := gli.New(&Global{})
 	app.Name = "glass"
-	app.Usage = "make overwrapping windows be transparent"
-	app.Version = "0.5.0"
-	app.Flags = []cli.Flag{
-		cli.BoolFlag{Name: "verbose", Usage: "verbose output to stderr"},
-	}
-	app.Commands = []cli.Command{
-		{
-			Name:  "watch",
-			Usage: "run constantly",
-			Flags: []cli.Flag{
-				cli.StringFlag{Name: "target, t", Usage: "target title"},
-				cli.IntFlag{Name: "alpha, a", Value: defaultAlphaPercent, Usage: "alpha by % (0 for unseen)"},
-				cli.Float64Flag{Name: "curve, c", Value: defaultAlphaCurve, Usage: "alpha curve (power)"},
-				cli.DurationFlag{Name: "interval, i", Value: 250 * time.Millisecond, Usage: "watch interval"},
-				cli.DurationFlag{Name: "timeout", Value: 0, Usage:"timeout of automatic recover"},
-				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
-			},
-			Action: func(c *cli.Context) error {
-				initVerboseLog(c)
-
-				allprocs := c.Bool("allprocs")
-				alpha := c.Int("alpha")
-				if alpha < 0 || 100 < alpha {
-					alpha = defaultAlphaPercent
-				}
-				curve := c.Float64("curve")
-				if curve < 1.0 || 3.0 < curve {
-					curve = defaultAlphaCurve
-				}
-				interval := c.Duration("interval")
-				timeout := c.Duration("timeout")
-				target := c.String("target")
-				for _, v := range c.Args() {
-					if len(target) > 0 {
-						target += "\n"
-					}
-					target += v
-				}
-				if len(target) == 0 {
-					return fmt.Errorf("target missing")
-				}
-
-				return runWatch(target, interval, alpha, curve, timeout, allprocs)
-			},
-		},
-		{
-			Name:    "list",
-			Aliases: []string{"ls"},
-			Usage:   "list overwrapping windows",
-			Flags: []cli.Flag{
-				cli.StringFlag{Name: "target, t", Usage: "target title"},
-				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
-			},
-			Action: func(c *cli.Context) error {
-				initVerboseLog(c)
-
-				allprocs := c.Bool("allprocs")
-				target := c.String("target")
-				for _, v := range c.Args() {
-					if len(target) > 0 {
-						target += "\n"
-					}
-					target += v
-				}
-				if len(target) == 0 {
-					return fmt.Errorf("target missing")
-				}
-
-				return runList(target, allprocs)
-			},
-		},
-		{
-			Name:  "temp",
-			Usage: "run once",
-			Flags: []cli.Flag{
-				cli.StringFlag{Name: "target, t", Usage: "target title"},
-				cli.IntFlag{Name: "alpha, a", Value: 50, Usage: "alpha by % (0 for unseen)"},
-				cli.Float64Flag{Name: "curve, c", Value: defaultAlphaCurve, Usage: "alpha curve (power)"},
-				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
-			},
-			Action: func(c *cli.Context) error {
-				initVerboseLog(c)
-
-				allprocs := c.Bool("allprocs")
-				alpha := c.Int("alpha")
-				if alpha < 0 || 100 < alpha {
-					alpha = 50
-				}
-				curve := c.Float64("curve")
-				if curve < 1.0 || 3.0 < curve {
-					curve = defaultAlphaCurve
-				}
-				target := c.String("target")
-				for _, v := range c.Args() {
-					if len(target) > 0 {
-						target += "\n"
-					}
-					target += v
-				}
-				if len(target) == 0 {
-					return fmt.Errorf("target missing")
-				}
-
-				return runTemp(target, alpha, curve, allprocs)
-			},
-		},
-		{
-			Name:  "recover",
-			Usage: "force all windows untransparent",
-			Flags: []cli.Flag{
-				cli.BoolTFlag{Name: "allprocs, all", Usage: "include windows created by all users"},
-			},
-			Action: func(c *cli.Context) error {
-				initVerboseLog(c)
-
-				allprocs := c.Bool("allprocs")
-
-				return runRecover(allprocs)
-			},
-		},
-	}
+	app.Desc = "make overwrapping windows be transparent"
+	app.Version = "0.6.0"
 	app.Run(os.Args)
-	return
-}
-
-func runList(target string, allprocs bool) error {
-	wins, err := listAllWindows(allprocs, nil)
-	if err != nil {
-		return err
-	}
-
-	tgtwins := filterWindowsByTitle(wins, target)
-
-	z := makeZOrderedList(tgtwins, wins)
-	for depth, wins := range z {
-		fmt.Printf("---- %d ----\n", depth)
-		for _, w := range wins {
-			fmt.Printf("  %s(%s)\n", w.Title, w.PID)
-		}
-	}
-
-	return nil
-}
-
-func runTemp(target string, alpha int, curve float64, allprocs bool) error {
-	wins, err := listAllWindows(allprocs, nil)
-	if err != nil {
-		return err
-	}
-
-	tgtwins := filterWindowsByTitle(wins, target)
-
-	z := makeZOrderedList(tgtwins, wins)
-	level := len(z) - 1
-
-	for depth, alpwins := range z {
-		if depth == 0 {
-			continue
-		}
-
-		verbose.Printf("---- %d ----\n", depth)
-		for _, w := range alpwins {
-			verbose.Printf("  %s\n", w.Title)
-			setAlpha(w.Handle, alphaFromPercent(alpha, level, curve))
-		}
-		level--
-	}
-	return nil
-}
-
-func runRecover(allprocs bool) error {
-	wins, err := listAllWindows(allprocs, nil)
-	if err != nil {
-		return err
-	}
-
-	for _, w := range wins {
-		setAlpha(w.Handle, 255)
-	}
-
-	return nil
-}
-
-func runWatch(target string, interval time.Duration, alpha int, curve float64, timeout time.Duration, allprocs bool) error {
-	fmt.Println("Press Ctrl+C to cancel.")
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, os.Interrupt)
-
-	var wins []*Window //save for listAllWindows() and recoverAlpha()
-
-	var clswins []*Window
-
-	var lastFG, currFG uintptr
-	var lastRect, currRect Rect
-
-	if timeout != 0 {
-		go func() {
-			time.Sleep(timeout)
-			signalChan <- os.Interrupt			
-		}()
-	}
-
-wachLoop:
-	for {
-		select {
-		case <-time.After(interval):
-			//continue
-		case <-signalChan:
-			break wachLoop
-		}
-
-		currFG, _, _ = getForegroundWindow.Call()
-		if result, _, _ := getWindowRect.Call(uintptr(currFG), uintptr(unsafe.Pointer(&currRect))); result == 0 {
-			currRect = Rect{}
-		}
-		if (currFG == lastFG && currFG != 0) && (currRect == lastRect) {
-			continue
-		}
-		lastFG = currFG
-		lastRect = currRect
-
-		verbose.Print("========== start ==========")
-		tm := elapsed.Start()
-
-		var err error
-		wins, err = listAllWindows(allprocs, wins)
-		if err != nil {
-			return err
-		}
-		verbose.Print("listed windows", tm.Elapsed())
-
-		tgtwins := filterWindowsByTitle(wins, target)
-		clswins = clswins[:0]
-		clswins = append(clswins, wins...)
-
-		verbose.Print("target filtered", tm.Elapsed())
-		for _, w := range tgtwins {
-			verbose.Printf("* %s", w.Title)
-		}
-
-		//
-
-		z := makeZOrderedList(tgtwins, wins)
-		level := len(z) - 1
-
-		for depth, alpwins := range z {
-			if depth == 0 {
-				continue
-			}
-
-			verbose.Printf("---- %d (alpha=%d) ----\n", depth, alphaFromPercent(alpha, level, curve))
-			for _, w := range alpwins {
-				verbose.Printf("  %s (%d)\n", w.Title, w.PID)
-				if uintptr(w.Handle) == currFG {
-					setAnimatedAlpha(w.Handle, alphaFromPercent(alpha, level, curve), 200*time.Millisecond, 50*time.Millisecond)
-				} else {
-					setAlpha(w.Handle, alphaFromPercent(alpha, level, curve))
-				}
-
-				idx := -1
-				for i, s := range clswins {
-					if s.Handle == w.Handle {
-						idx = i
-					}
-				}
-				if idx != -1 {
-					clswins = append(clswins[:idx], clswins[idx+1:]...)
-				}
-			}
-			level--
-		}
-
-		for _, w := range clswins {
-			setAlpha(w.Handle, 255)
-		}
-		verbose.Print("cleared", tm.Elapsed())
-	}
-
-	wins, _ = listAllWindows(allprocs, wins)
-	recoverAlpha(wins)
-
-	return nil
 }
 
 const (
