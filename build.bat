@@ -1,5 +1,7 @@
 set NAME=glass
 
+rem goxz -d dist -os windows -arch amd64,386 -build-ldflags "-s -w"
+
 set GOOS=windows
 set GOARCH=386
 set ZIPNAME=%NAME%_%GOOS%_%GOARCH%.zip 

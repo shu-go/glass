@@ -29,7 +29,7 @@ func (c listCmd) Run(args []string) error {
 	for depth, wins := range z {
 		fmt.Printf("---- %d ----\n", depth)
 		for _, w := range wins {
-			fmt.Printf("  %s(%s)\n", w.Title, w.PID)
+			fmt.Printf("  %s(%d)\n", w.Title, w.PID)
 		}
 	}
 
