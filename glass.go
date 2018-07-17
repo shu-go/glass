@@ -9,9 +9,10 @@ import (
 	"time"
 	"unsafe"
 
-	"bitbucket.org/shu/gli"
-	"bitbucket.org/shu/retry"
-	"bitbucket.org/shu/rog"
+	"bitbucket.org/shu_go/buildcond/cond"
+	"bitbucket.org/shu_go/gli"
+	"bitbucket.org/shu_go/retry"
+	"bitbucket.org/shu_go/rog"
 )
 
 const (
@@ -36,8 +37,10 @@ type Global struct {
 func (g Global) Before() {
 	if g.Verbose {
 		verbose = rog.New(os.Stderr, "", 0)
-		rog.EnableDebug()
 	}
+	cond.IfDebug(func() {
+		rog.EnableDebug()
+	})
 }
 
 func main() {
