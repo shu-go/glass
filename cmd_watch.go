@@ -8,9 +8,8 @@ import (
 	"time"
 	"unsafe"
 
-	"bitbucket.org/shu/elapsed"
-	"bitbucket.org/shu/gli"
-	"bitbucket.org/shu/rog"
+	"bitbucket.org/shu_go/elapsed"
+	"bitbucket.org/shu_go/gli"
 )
 
 type watchCmd struct {
@@ -41,7 +40,6 @@ func (c *watchCmd) Before() error {
 }
 
 func (c *watchCmd) Run(args []string) error {
-	rog.Debug("watch")
 	target := c.Target
 	for _, v := range args {
 		if len(target) > 0 {
