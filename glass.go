@@ -25,7 +25,7 @@ var (
 	//verbose = log.New(ioutil.Discard)
 )
 
-type Global struct {
+type globalCmd struct {
 	Watch   watchCmd   `cli:"watch, w" help:"run constantly"`
 	List    listCmd    `cli:"list, ls" help:"list overwrapping windows"`
 	Temp    tempCmd    `help:"run once"`
@@ -34,7 +34,7 @@ type Global struct {
 	Verbose bool `cli:"verbose, v" help:"verbose output to stderr"`
 }
 
-func (g Global) Before() {
+func (g globalCmd) Before() {
 	if g.Verbose {
 		verbose = rog.New(os.Stderr, "", 0)
 	}
@@ -44,7 +44,7 @@ func (g Global) Before() {
 }
 
 func main() {
-	app := gli.New(&Global{})
+	app := gli.NewWith(&globalCmd{})
 	app.Name = "glass"
 	app.Desc = "make overwrapping windows be transparent"
 	app.Version = "0.6.0"
