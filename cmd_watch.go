@@ -8,8 +8,8 @@ import (
 	"time"
 	"unsafe"
 
-	"bitbucket.org/shu_go/elapsed"
-	"bitbucket.org/shu_go/gli"
+	"github.com/shu-go/elapsed"
+	"github.com/shu-go/gli"
 )
 
 type watchCmd struct {

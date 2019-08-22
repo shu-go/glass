@@ -9,10 +9,10 @@ import (
 	"time"
 	"unsafe"
 
-	"bitbucket.org/shu_go/buildcond/cond"
-	"bitbucket.org/shu_go/gli"
-	"bitbucket.org/shu_go/retry"
-	"bitbucket.org/shu_go/rog"
+	"github.com/shu-go/buildcond/cond"
+	"github.com/shu-go/gli"
+	"github.com/shu-go/retry"
+	"github.com/shu-go/rog"
 )
 
 const (
