@@ -15,6 +15,15 @@ import (
 	"github.com/shu-go/rog"
 )
 
+// Version is app version
+var Version string
+
+func init() {
+	if Version == "" {
+		Version = "dev-" + time.Now().Format("20060102")
+	}
+}
+
 const (
 	defaultAlphaPercent = 15
 	defaultAlphaCurve   = 2
@@ -47,7 +56,7 @@ func main() {
 	app := gli.NewWith(&globalCmd{})
 	app.Name = "glass"
 	app.Desc = "make overwrapping windows be transparent"
-	app.Version = "0.6.0"
+	app.Version = Version
 	app.Run(os.Args)
 }
 
