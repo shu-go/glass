@@ -16,8 +16,8 @@ jobs:
       - run: echo 'export PATH=${GOPATH}/bin/:${PATH}' >> $BASH_ENV
       - checkout
       - run: go get -u  github.com/Songmu/goxz/cmd/goxz  github.com/tcnksm/ghr
-      - run: goxz -pv $(git describe)  -os "windows"  -arch="386 amd64" -build-ldflags "-s -w -X main.Version=$(git describe)" -include sample.bat
-      - run: ghr -t $GITHUB_TOKEN  -u shu-go  --replace $(git describe)  goxz/
+      - run: goxz -pv $(git describe --abbrev=0)  -os "windows"  -arch="386 amd64" -build-ldflags "-s -w -X main.Version=$(git describe --abbrev=0)" -include sample.bat
+      - run: ghr -t $GITHUB_TOKEN  -u shu-go  --replace $(git describe --abbrev=0)  goxz/
 
 workflows:
   version: 2
