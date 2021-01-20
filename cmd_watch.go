@@ -70,13 +70,13 @@ func (c *watchCmd) Run(args []string) error {
 		}()
 	}
 
-wachLoop:
+watchLoop:
 	for {
 		select {
 		case <-time.After(c.Interval.Duration()):
 			//continue
 		case <-signalChan:
-			break wachLoop
+			break watchLoop
 		}
 
 		currFG, _, _ = getForegroundWindow.Call()
