@@ -1,3 +1,7 @@
+github.com/lxn/walk v0.0.0-20210112085537-c389da54e794 h1:NVRJ0Uy0SOFcXSKLsS65OmI1sgCCfiDUPj+cwnH7GZw=
+github.com/lxn/walk v0.0.0-20210112085537-c389da54e794/go.mod h1:E23UucZGqpuUANJooIbHWCufXvOcT6E7Stq81gU+CSQ=
+github.com/lxn/win v0.0.0-20201111105847-2a20daff6a55 h1:4BxFx5XCtXc+nFtXDGDW+Uu5sPtsAbvPh6RObj3fG9o=
+github.com/lxn/win v0.0.0-20201111105847-2a20daff6a55/go.mod h1:KxxjdtRkfNoYDCUP5ryK7XJJNTnpC8atvtmTheChOtk=
 github.com/mattn/go-runewidth v0.0.4 h1:2BvfKmzob6Bmd4YsL0zygOqfdFnK7GR4QL06Do4/p7Y=
 github.com/mattn/go-runewidth v0.0.4/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
 github.com/shu-go/buildcond v0.0.0-20190822025422-2120c8ecbe46 h1:61QFt/QYRHCcF1KB8HqHiWlwPK8VjS1t3+K4Ttn1iVI=
@@ -17,3 +21,8 @@ github.com/shu-go/retry v0.0.0-20170311144019-375aa474fe73 h1:LoB1M4Ba9rbXgIa/Zr
 github.com/shu-go/retry v0.0.0-20170311144019-375aa474fe73/go.mod h1:sMNqJdPyuvoe4mCcAX+pANldvv06TrzpPEp4rXheuJ8=
 github.com/shu-go/rog v0.0.0-20190826055139-09f31aeaaebd h1:4HEm7TeZfpMp8mrjUoRt0MxTCvJrakuRn3rSbOSOBqE=
 github.com/shu-go/rog v0.0.0-20190826055139-09f31aeaaebd/go.mod h1:z2vjwV5lUEhVBjFneBZQECuBiel1kmKuU0sVJCwysDY=
+golang.org/x/sys v0.0.0-20201018230417-eeed37f84f13/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4 h1:myAQVi0cGEoqQVR5POX+8RR2mrocKqNN1hmeMqhX27k=
+golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+gopkg.in/Knetic/govaluate.v3 v3.0.0 h1:18mUyIt4ZlRlFZAAfVetz4/rzlJs9yhN+U02F4u1AOc=
+gopkg.in/Knetic/govaluate.v3 v3.0.0/go.mod h1:csKLBORsPbafmSCGTEh3U7Ozmsuq8ZSIlKk1bcqph0E=
