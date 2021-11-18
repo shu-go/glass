@@ -24,11 +24,6 @@ func init() {
 	}
 }
 
-const (
-	defaultAlphaPercent = 15
-	defaultAlphaCurve   = 2
-)
-
 var (
 	verbose = rog.Discard
 	//verbose = log.New(ioutil.Discard)
