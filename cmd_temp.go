@@ -4,13 +4,8 @@ import "fmt"
 
 type tempCmd struct {
 	Target string  `cli:"target, t" help:"target title"`
-	Alpha  int     `cli:"alpha, a" help:"alpha by % (0 for unseen)"`
-	Curve  float64 `cli:"curve, c" help:"alpha curve (power)"`
-}
-
-func (c *tempCmd) Init() {
-	c.Alpha = defaultAlphaPercent
-	c.Curve = defaultAlphaCurve
+	Alpha  int     `cli:"alpha, a" default:"15" help:"alpha by % (0 for unseen)"`
+	Curve  float64 `cli:"curve, c" default:"2.0" help:"alpha curve (power)"`
 }
 
 func (c *tempCmd) Before() error {

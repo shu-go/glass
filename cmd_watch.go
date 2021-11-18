@@ -9,22 +9,14 @@ import (
 	"unsafe"
 
 	"github.com/shu-go/elapsed"
-	"github.com/shu-go/gli"
 )
 
 type watchCmd struct {
-	Target   string       `cli:"target, t" help:"target title"`
-	Alpha    int          `cli:"alpha, a" help:"alpha by % (0 for unseen)"`
-	Curve    float64      `cli:"curve, c" help:"alpha curve (power)"`
-	Interval gli.Duration `cli:"interval, i" help:"watch interval"`
-	Timeout  gli.Duration `help:"timeout of automatic recover"`
-}
-
-func (c *watchCmd) Init() {
-	c.Alpha = defaultAlphaPercent
-	c.Curve = defaultAlphaCurve
-	c.Interval = gli.Duration(250 * time.Millisecond)
-	c.Timeout = gli.Duration(0)
+	Target   string        `cli:"target, t" help:"target title"`
+	Alpha    int           `cli:"alpha, a" default:"15" help:"alpha by % (0 for unseen)"`
+	Curve    float64       `cli:"curve, c" default:"2.0" help:"alpha curve (power)"`
+	Interval time.Duration `cli:"interval, i" default:"250ms" help:"watch interval"`
+	Timeout  time.Duration `default:"0s" help:"timeout of automatic recover"`
 }
 
 func (c *watchCmd) Before() error {
@@ -65,7 +57,7 @@ func (c *watchCmd) Run(args []string) error {
 
 	if c.Timeout != 0 {
 		go func() {
-			time.Sleep(c.Timeout.Duration())
+			time.Sleep(c.Timeout)
 			signalChan <- os.Interrupt
 		}()
 	}
@@ -73,7 +65,7 @@ func (c *watchCmd) Run(args []string) error {
 watchLoop:
 	for {
 		select {
-		case <-time.After(c.Interval.Duration()):
+		case <-time.After(c.Interval):
 			//continue
 		case <-signalChan:
 			break watchLoop
