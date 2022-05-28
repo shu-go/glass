@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -102,94 +103,104 @@ var (
 	//-> use windows.XXX
 )
 
-func listAllWindows(allprocs bool, orgWins []*Window) (wins []*Window, err error) {
+var gCallback uintptr
+var gCallbackOnce sync.Once
+var gPtrOrgDict *map[syscall.Handle]*Window
+var gPtrwins *[]*Window
+
+func listAllWindows(orgWins []*Window) ([]*Window, error) {
 	orgDict := makeHWND2WindowDict(orgWins)
+	gPtrOrgDict = &orgDict
+	gPtrwins = &([]*Window{})
 
-	cb := syscall.NewCallback(func(hwnd syscall.Handle, lparam uintptr) uintptr {
-		b, _, _ := isWindow.Call(uintptr(hwnd))
-		if b == 0 {
-			return 1
-		}
+	gCallbackOnce.Do(func() {
+		gCallback = syscall.NewCallback(func(hwnd syscall.Handle, lparam uintptr) uintptr {
+			b, _, _ := isWindow.Call(uintptr(hwnd))
+			if b == 0 {
+				return 1
+			}
 
-		title := ""
-		tlen, _, _ := getWindowTextLength.Call(uintptr(hwnd))
-		if tlen != 0 {
-			tlen++
-			buff := make([]uint16, tlen)
-			getWindowText.Call(
+			title := ""
+			tlen, _, _ := getWindowTextLength.Call(uintptr(hwnd))
+			if tlen != 0 {
+				tlen++
+				buff := make([]uint16, tlen)
+				getWindowText.Call(
+					uintptr(hwnd),
+					uintptr(unsafe.Pointer(&buff[0])),
+					uintptr(tlen),
+				)
+				title = syscall.UTF16ToString(buff)
+			}
+
+			prevHWND := syscall.Handle(uintptr(0))
+			result, _, _ := getWindow.Call(uintptr(hwnd), 3 /*GW_HWNDPREV*/)
+			if result != 0 {
+				prevHWND = syscall.Handle(uintptr(result))
+			}
+
+			var processID uintptr
+			getWindowThreadProcessId.Call(
 				uintptr(hwnd),
-				uintptr(unsafe.Pointer(&buff[0])),
-				uintptr(tlen),
+				uintptr(unsafe.Pointer(&processID)),
 			)
-			title = syscall.UTF16ToString(buff)
-		}
 
-		prevHWND := syscall.Handle(uintptr(0))
-		result, _, _ := getWindow.Call(uintptr(hwnd), 3 /*GW_HWNDPREV*/)
-		if result != 0 {
-			prevHWND = syscall.Handle(uintptr(result))
-		}
-
-		var processID uintptr
-		getWindowThreadProcessId.Call(
-			uintptr(hwnd),
-			uintptr(unsafe.Pointer(&processID)),
-		)
-
-		r := Rect{}
-		result, _, _ = getWindowRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&r)))
-		if result == 0 {
-			r = Rect{}
-		}
-
-		var orgWin *Window
-		if orgDict != nil {
-			if w, found := orgDict[hwnd]; found {
-				orgWin = w
+			r := Rect{}
+			result, _, _ = getWindowRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&r)))
+			if result == 0 {
+				r = Rect{}
 			}
-		}
 
-		var alpha uintptr
-		if orgWin != nil {
-			alpha = uintptr(orgWin.OrgAlpha)
-		} else {
-			var flag uintptr
-			result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), uintptr(unsafe.Pointer(&flag)))
-			if result == 0 || flag&LWA_ALPHA == 0 {
-				alpha = 255
+			var orgWin *Window
+			orgDict := *gPtrOrgDict
+			if orgDict != nil {
+				if w, found := orgDict[hwnd]; found {
+					orgWin = w
+				}
 			}
-			/*
-				style, _, err := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
-				if style&WS_EX_LAYERED != 0 {
-					result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), LWA_ALPHA)
-					if result == 0 {
-						alpha = 255
-					}
-				} else {
+
+			var alpha uintptr
+			if orgWin != nil {
+				alpha = uintptr(orgWin.OrgAlpha)
+			} else {
+				var flag uintptr
+				result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), uintptr(unsafe.Pointer(&flag)))
+				if result == 0 || flag&LWA_ALPHA == 0 {
 					alpha = 255
 				}
-			*/
-		}
+				/*
+					style, _, err := getWindowLong.Call(uintptr(hwnd), GWL_EXSTYLE)
+					if style&WS_EX_LAYERED != 0 {
+						result, _, _ := getLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(unsafe.Pointer(&alpha)), LWA_ALPHA)
+						if result == 0 {
+							alpha = 255
+						}
+					} else {
+						alpha = 255
+					}
+				*/
+			}
 
-		win := &Window{
-			Title:       title,
-			Handle:      hwnd,
-			PID:         int(processID),
-			ZPrevHandle: prevHWND,
-			Rect:        r,
-			OrgAlpha:    int(alpha),
-		}
-		wins = append(wins, win)
+			win := &Window{
+				Title:       title,
+				Handle:      hwnd,
+				PID:         int(processID),
+				ZPrevHandle: prevHWND,
+				Rect:        r,
+				OrgAlpha:    int(alpha),
+			}
+			*gPtrwins = append(*gPtrwins, win)
 
-		return 1
+			return 1
+		})
 	})
 
-	a, _, _ := enumWindows.Call(cb, 0)
+	a, _, _ := enumWindows.Call(gCallback, 0)
 	if a == 0 {
 		return nil, fmt.Errorf("USER32.EnumWindows returned FALSE")
 	}
 
-	return wins, nil
+	return *gPtrwins, nil
 }
 
 func filterWindowsByTitle(wins []*Window, filter string) []*Window {

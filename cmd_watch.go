@@ -85,7 +85,7 @@ watchLoop:
 		tm := elapsed.Start()
 
 		var err error
-		wins, err = listAllWindows(true, wins)
+		wins, err = listAllWindows(wins)
 		if err != nil {
 			return err
 		}
@@ -138,7 +138,7 @@ watchLoop:
 		verbose.Print("cleared", tm.Elapsed())
 	}
 
-	wins, _ = listAllWindows(true, wins)
+	wins, _ = listAllWindows(wins)
 	recoverAlpha(wins)
 
 	return nil

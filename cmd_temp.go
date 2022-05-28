@@ -32,7 +32,7 @@ func (c tempCmd) Run(args []string) error {
 		return fmt.Errorf("target missing")
 	}
 
-	wins, err := listAllWindows(true, nil)
+	wins, err := listAllWindows(nil)
 	if err != nil {
 		return err
 	}

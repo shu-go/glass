@@ -3,7 +3,7 @@ package main
 type recoverCmd struct{}
 
 func (c recoverCmd) Run() error {
-	wins, err := listAllWindows(true, nil)
+	wins, err := listAllWindows(nil)
 	if err != nil {
 		return err
 	}
