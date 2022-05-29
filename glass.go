@@ -473,10 +473,12 @@ func alphaFromPercent(percent, level int, curve float64, gray uint8) uintptr {
 	//return uintptr(255 * math.Pow(float64(100-percent)/100, math.Pow(float64(level), curve)))
 	v := math.Pow(float64(100-percent)/100, math.Pow(float64(level), curve))
 
-	// gray ==   0 => x0.5
-	// gray == 128 => x1.0
-	// gray == 255 => x1.5
-	v *= (255-float64(gray))/255 + 0.5
+	// gray ==   0 => x1.0
+	// gray == 128 => x1.0 --+
+	// gray == 255 => x0.5 --+-- liner
+	if gray > 128 {
+		v *= (0.5-1.0/255-128)*float64(gray) + 1.5
+	}
 
 	v = math.Min(1.0, v)
 
