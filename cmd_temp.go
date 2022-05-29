@@ -50,7 +50,7 @@ func (c tempCmd) Run(args []string) error {
 		verbose.Printf("---- %d ----\n", depth)
 		for _, w := range alpwins {
 			verbose.Printf("  %s\n", w.Title)
-			setAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve))
+			setAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve, w.ColorProfile.AvgGray(255)))
 		}
 		level--
 	}

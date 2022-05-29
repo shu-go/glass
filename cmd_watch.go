@@ -110,13 +110,13 @@ watchLoop:
 				continue
 			}
 
-			verbose.Printf("---- %d (alpha=%d) ----\n", depth, alphaFromPercent(c.Alpha, level, c.Curve))
+			verbose.Printf("---- %d (alpha=%d) ----\n", depth, alphaFromPercent(c.Alpha, level, c.Curve, 128))
 			for _, w := range alpwins {
 				verbose.Printf("  %s (%d)\n", w.Title, w.PID)
 				if uintptr(w.Handle) == currFG {
-					setAnimatedAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve), 200*time.Millisecond, 50*time.Millisecond)
+					setAnimatedAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve, w.ColorProfile.AvgGray(255)), 200*time.Millisecond, 50*time.Millisecond)
 				} else {
-					setAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve))
+					setAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve, w.ColorProfile.AvgGray(255)))
 				}
 
 				idx := -1
