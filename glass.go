@@ -80,24 +80,21 @@ type (
 )
 
 var (
-	user32                   = syscall.NewLazyDLL("user32.dll")
-	isWindow                 = user32.NewProc("IsWindow")
-	getForegroundWindow      = user32.NewProc("GetForegroundWindow")
-	enumWindows              = user32.NewProc("EnumWindows")
-	getWindowText            = user32.NewProc("GetWindowTextW")
-	getWindowTextLength      = user32.NewProc("GetWindowTextLengthW")
-	getWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
-
-	getWindow = user32.NewProc("GetWindow")
-
-	getWindowRect = user32.NewProc("GetWindowRect")
-
+	user32                     = syscall.NewLazyDLL("user32.dll")
+	enumWindows                = user32.NewProc("EnumWindows")
+	getForegroundWindow        = user32.NewProc("GetForegroundWindow")
 	getLayeredWindowAttributes = user32.NewProc("GetLayeredWindowAttributes")
-	setLayeredWindowAttributes = user32.NewProc("SetLayeredWindowAttributes")
+	getWindow                  = user32.NewProc("GetWindow")
 	getWindowLong              = user32.NewProc("GetWindowLongW")
-	setWindowLong              = user32.NewProc("SetWindowLongW")
-	isWindowVisible            = user32.NewProc("IsWindowVisible")
+	getWindowRect              = user32.NewProc("GetWindowRect")
+	getWindowText              = user32.NewProc("GetWindowTextW")
+	getWindowTextLength        = user32.NewProc("GetWindowTextLengthW")
+	getWindowThreadProcessId   = user32.NewProc("GetWindowThreadProcessId")
 	isIconic                   = user32.NewProc("IsIconic")
+	isWindow                   = user32.NewProc("IsWindow")
+	isWindowVisible            = user32.NewProc("IsWindowVisible")
+	setLayeredWindowAttributes = user32.NewProc("SetLayeredWindowAttributes")
+	setWindowLong              = user32.NewProc("SetWindowLongW")
 
 	kernel32 = syscall.NewLazyDLL("kernel32.dll")
 	//-> use windows.XXX
