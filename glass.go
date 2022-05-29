@@ -95,9 +95,6 @@ var (
 	isWindowVisible            = user32.NewProc("IsWindowVisible")
 	setLayeredWindowAttributes = user32.NewProc("SetLayeredWindowAttributes")
 	setWindowLong              = user32.NewProc("SetWindowLongW")
-
-	kernel32 = syscall.NewLazyDLL("kernel32.dll")
-	//-> use windows.XXX
 )
 
 var gCallback uintptr
