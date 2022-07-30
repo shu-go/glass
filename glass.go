@@ -582,3 +582,16 @@ func (cp ColorProfile) AvgGray(defaultValue uint8) uint8 {
 
 	return uint8(avg / count)
 }
+
+func (cp ColorProfile) String() string {
+	s := "["
+	for i, c := range cp {
+		if i > 0 {
+			s += ", "
+		}
+		s += fmt.Sprintf("%x", c.COLORREF)
+	}
+	s += "]"
+
+	return s
+}
