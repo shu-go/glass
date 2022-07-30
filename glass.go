@@ -181,7 +181,7 @@ func listAllWindows(orgWins []*Window) ([]*Window, error) {
 					x += dx
 					y += dy
 				}
-				releaseDC.Call(hdc)
+				releaseDC.Call(uintptr(hwnd), hdc)
 			}
 
 			var alpha uintptr
