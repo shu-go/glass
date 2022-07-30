@@ -160,7 +160,10 @@ func listAllWindows(orgWins []*Window) ([]*Window, error) {
 			}
 
 			var colorProfile ColorProfile
-			if (orgWin == nil || orgWin.ColorProfile == nil) && (r.Left != r.Right && r.Top != r.Bottom) {
+			if orgWin != nil && orgWin.ColorProfile != nil {
+				colorProfile = orgWin.ColorProfile
+			}
+			if (colorProfile == nil) && (r.Left != r.Right && r.Top != r.Bottom) {
 				d := 3
 				colorProfile = make(ColorProfile, 0, d)
 
