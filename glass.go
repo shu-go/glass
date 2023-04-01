@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -35,6 +36,8 @@ type globalCmd struct {
 	List    listCmd    `cli:"list, ls" help:"list overwrapping windows"`
 	Temp    tempCmd    `help:"run once"`
 	Recover recoverCmd `help:"force all windows untransparent"`
+
+	EnableColorProfiling bool `cli:"cp" default:"true" help:"enable color profiling"`
 
 	Verbose bool `cli:"verbose, v" help:"verbose output to stderr"`
 }
@@ -70,12 +73,13 @@ type (
 		Left, Top, Right, Bottom int32
 	}
 	Window struct {
-		Title       string
-		Handle      syscall.Handle
-		PID         int
-		ZPrevHandle syscall.Handle
-		Rect        Rect
-		OrgAlpha    int
+		Title        string
+		Handle       syscall.Handle
+		PID          int
+		ZPrevHandle  syscall.Handle
+		Rect         Rect
+		OrgAlpha     int
+		ColorProfile ColorProfile
 	}
 )
 
@@ -85,6 +89,7 @@ var (
 	getForegroundWindow        = user32.NewProc("GetForegroundWindow")
 	getLayeredWindowAttributes = user32.NewProc("GetLayeredWindowAttributes")
 	getWindow                  = user32.NewProc("GetWindow")
+	getWindowDC                = user32.NewProc("GetWindowDC")
 	getWindowLong              = user32.NewProc("GetWindowLongW")
 	getWindowRect              = user32.NewProc("GetWindowRect")
 	getWindowText              = user32.NewProc("GetWindowTextW")
@@ -93,8 +98,12 @@ var (
 	isIconic                   = user32.NewProc("IsIconic")
 	isWindow                   = user32.NewProc("IsWindow")
 	isWindowVisible            = user32.NewProc("IsWindowVisible")
+	releaseDC                  = user32.NewProc("ReleaseDC")
 	setLayeredWindowAttributes = user32.NewProc("SetLayeredWindowAttributes")
 	setWindowLong              = user32.NewProc("SetWindowLongW")
+
+	gdi32    = syscall.NewLazyDLL("gdi32.dll")
+	getPixel = gdi32.NewProc("GetPixel")
 )
 
 var gCallback uintptr
@@ -102,7 +111,7 @@ var gCallbackOnce sync.Once
 var gPtrOrgDict *map[syscall.Handle]*Window
 var gPtrwins *[]*Window
 
-func listAllWindows(orgWins []*Window) ([]*Window, error) {
+func listAllWindows(orgWins []*Window, enableColorProfiling bool) ([]*Window, error) {
 	orgDict := makeHWND2WindowDict(orgWins)
 	gPtrOrgDict = &orgDict
 	gPtrwins = &([]*Window{})
@@ -153,6 +162,43 @@ func listAllWindows(orgWins []*Window) ([]*Window, error) {
 				}
 			}
 
+			rog.EnableDebugIf(strings.Contains(title, "ペイント"))
+			var colorProfile ColorProfile
+			if enableColorProfiling && orgWin != nil && orgWin.ColorProfile != nil {
+				colorProfile = orgWin.ColorProfile
+			}
+			if (colorProfile == nil) && (r.Left != r.Right && r.Top != r.Bottom) {
+				d := 20
+				colorProfile = make(ColorProfile, 0, d)
+
+				dx := (r.Right - r.Left) / (int32(d) + 1)
+				dy := (r.Bottom - r.Top) / (int32(d) + 1)
+
+				hdc, _, _ := getWindowDC.Call(uintptr(hwnd))
+
+				x := dx
+				y := dy
+				for i := 0; i < d; i++ {
+					colorref, _, _ := getPixel.Call(hdc, uintptr(x), uintptr(y))
+					c := NewColor(colorref)
+					if c != nil {
+						rog.Debug(c.Gray, x, y)
+						colorProfile = append(colorProfile, c)
+					}
+
+					x += dx
+					y += dy
+				}
+				releaseDC.Call(uintptr(hwnd), hdc)
+
+				if len(colorProfile) > 5 {
+					sort.Slice(colorProfile, func(i, j int) bool {
+						return colorProfile[i].Gray < colorProfile[j].Gray
+					})
+					colorProfile = colorProfile[2 : len(colorProfile)-3]
+				}
+			}
+
 			var alpha uintptr
 			if orgWin != nil {
 				alpha = uintptr(orgWin.OrgAlpha)
@@ -182,6 +228,9 @@ func listAllWindows(orgWins []*Window) ([]*Window, error) {
 				ZPrevHandle: prevHWND,
 				Rect:        r,
 				OrgAlpha:    int(alpha),
+			}
+			if len(colorProfile) > 0 {
+				win.ColorProfile = colorProfile
 			}
 			*gPtrwins = append(*gPtrwins, win)
 
@@ -435,6 +484,129 @@ func recoverAlpha(wins []*Window) {
 	}
 }
 
-func alphaFromPercent(percent, level int, curve float64) uintptr {
-	return uintptr(255 * math.Pow(float64(100-percent)/100, math.Pow(float64(level), curve)))
+func alphaFromPercent(percent, level int, curve float64, gray uint8) uintptr {
+	//return uintptr(255 * math.Pow(float64(100-percent)/100, math.Pow(float64(level), curve)))
+	v := math.Pow(float64(100-percent)/100, math.Pow(float64(level), curve))
+
+	// gray ==   0 => x1.0
+	// gray == 128 => x1.0 --+
+	// gray == 255 => x0.5 --+-- liner
+	if gray > 128 {
+		v *= ((0.5-1.0)/(255-128))*float64(gray) + 1.5
+	}
+
+	v = math.Min(1.0, v)
+
+	//rog.Print(uintptr(255*math.Pow(float64(100-percent)/100, math.Pow(float64(level), curve))), uintptr(255*v))
+
+	return uintptr(255 * v)
+}
+
+type ColorProfile []*Color
+
+type Color struct {
+	COLORREF uintptr
+
+	Gray uint8
+
+	H uint16 // [0, 360]
+	S uint8  // [0, 255]
+	V uint8  // [0, 255]
+}
+
+func NewColor(colorref uintptr) *Color {
+	if colorref == 0xffffffff {
+		return nil
+	}
+	if colorref == 0 {
+		colorref = 0x00ffffff
+	}
+
+	r := int16(colorref & 0xff)
+	g := int16((colorref << 2) & 0xff)
+	b := int16((colorref << 4) & 0xff)
+
+	min := r
+	if min < g {
+		min = g
+	}
+	if min < b {
+		min = b
+	}
+
+	max := r
+	if max > g {
+		max = g
+	}
+	if max > b {
+		max = b
+	}
+
+	var gray uint8
+	gray = uint8(float64(r)*0.3 + float64(g)*0.59 + float64(b)*0.11)
+
+	var h int16
+	var s, v uint8
+
+	if min == max {
+		h = 0
+	} else if min == b {
+		h = 60*(g-b)/(max-min) + 60
+	} else if min == r {
+		h = 60*(b-g)/(max-min) + 180
+	} else {
+		h = 60*(r-b)/(max-min) + 300
+	}
+	if h < 0 {
+		h += 360
+	}
+	s = uint8((max - min))
+	v = uint8(max)
+
+	return &Color{
+		COLORREF: colorref,
+		Gray:     gray,
+		H:        uint16(h),
+		S:        s,
+		V:        v,
+	}
+}
+
+func (c *Color) IsValid() bool {
+	return c != nil && c.COLORREF != 0xffffffff
+}
+
+func (cp ColorProfile) AvgGray(defaultValue uint8) uint8 {
+	if len(cp) == 0 {
+		return defaultValue
+	}
+
+	count := 0
+	avg := 0
+
+	for _, c := range cp {
+		if c.IsValid() {
+			count++
+			avg += int(c.Gray)
+		}
+	}
+
+	if count == 0 {
+		return defaultValue
+	}
+
+	return uint8(avg / count)
+}
+
+func (cp ColorProfile) String() string {
+	s := "["
+	for i, c := range cp {
+		if i > 0 {
+			s += ", "
+		}
+		s += fmt.Sprintf("%x", c.COLORREF)
+	}
+	s += "]"
+
+	return s
 }

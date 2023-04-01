@@ -20,7 +20,7 @@ func (c *tempCmd) Before() error {
 	return nil
 }
 
-func (c tempCmd) Run(args []string) error {
+func (c tempCmd) Run(args []string, global globalCmd) error {
 	target := c.Target
 	for _, v := range args {
 		if len(target) > 0 {
@@ -32,7 +32,7 @@ func (c tempCmd) Run(args []string) error {
 		return fmt.Errorf("target missing")
 	}
 
-	wins, err := listAllWindows(nil)
+	wins, err := listAllWindows(nil, global.EnableColorProfiling)
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (c tempCmd) Run(args []string) error {
 		verbose.Printf("---- %d ----\n", depth)
 		for _, w := range alpwins {
 			verbose.Printf("  %s\n", w.Title)
-			setAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve))
+			setAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve, w.ColorProfile.AvgGray(255)))
 		}
 		level--
 	}

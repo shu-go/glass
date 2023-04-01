@@ -31,7 +31,7 @@ func (c *watchCmd) Before() error {
 	return nil
 }
 
-func (c *watchCmd) Run(args []string) error {
+func (c *watchCmd) Run(args []string, global globalCmd) error {
 	target := c.Target
 	for _, v := range args {
 		if len(target) > 0 {
@@ -85,7 +85,7 @@ watchLoop:
 		tm := elapsed.Start()
 
 		var err error
-		wins, err = listAllWindows(wins)
+		wins, err = listAllWindows(wins, global.EnableColorProfiling)
 		if err != nil {
 			return err
 		}
@@ -97,7 +97,13 @@ watchLoop:
 
 		verbose.Print("target filtered", tm.Elapsed())
 		for _, w := range tgtwins {
-			verbose.Printf("* %s", w.Title)
+			var gray uint8
+			if global.EnableColorProfiling {
+				gray = w.ColorProfile.AvgGray(255)
+			} else {
+				gray = 0
+			}
+			verbose.Printf("[gray=%v] * %s", gray, w.Title)
 		}
 
 		//
@@ -110,13 +116,21 @@ watchLoop:
 				continue
 			}
 
-			verbose.Printf("---- %d (alpha=%d) ----\n", depth, alphaFromPercent(c.Alpha, level, c.Curve))
+			verbose.Printf("---- %d [alpha=%d] ----\n", depth, alphaFromPercent(c.Alpha, level, c.Curve, 128))
 			for _, w := range alpwins {
-				verbose.Printf("  %s (%d)\n", w.Title, w.PID)
-				if uintptr(w.Handle) == currFG {
-					setAnimatedAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve), 200*time.Millisecond, 50*time.Millisecond)
+				var gray uint8
+				if global.EnableColorProfiling {
+					gray = w.ColorProfile.AvgGray(255)
 				} else {
-					setAlpha(w.Handle, alphaFromPercent(c.Alpha, level, c.Curve))
+					gray = 0
+				}
+				var alpha uintptr
+				alpha = alphaFromPercent(c.Alpha, level, c.Curve, gray)
+				verbose.Printf("  [gray=%v, alpha=%v] %s (%d)\n", gray, alpha, w.Title, w.PID)
+				if uintptr(w.Handle) == currFG {
+					setAnimatedAlpha(w.Handle, alpha, 200*time.Millisecond, 50*time.Millisecond)
+				} else {
+					setAlpha(w.Handle, alpha)
 				}
 
 				idx := -1
@@ -138,7 +152,7 @@ watchLoop:
 		verbose.Print("cleared", tm.Elapsed())
 	}
 
-	wins, _ = listAllWindows(wins)
+	wins, _ = listAllWindows(wins, false)
 	recoverAlpha(wins)
 
 	return nil

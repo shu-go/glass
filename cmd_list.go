@@ -6,7 +6,7 @@ type listCmd struct {
 	Target string `cli:"target, t" help:"target title"`
 }
 
-func (c listCmd) Run(args []string) error {
+func (c listCmd) Run(args []string, global globalCmd) error {
 	target := c.Target
 	for _, v := range args {
 		if len(target) > 0 {
@@ -18,7 +18,7 @@ func (c listCmd) Run(args []string) error {
 		return fmt.Errorf("target missing")
 	}
 
-	wins, err := listAllWindows(nil)
+	wins, err := listAllWindows(nil, global.EnableColorProfiling)
 	if err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func (c listCmd) Run(args []string) error {
 	for depth, wins := range z {
 		fmt.Printf("---- %d ----\n", depth)
 		for _, w := range wins {
-			fmt.Printf("  %s(%d)\n", w.Title, w.PID)
+			fmt.Printf("  %s(%d) %d\n", w.Title, w.PID, w.ColorProfile.AvgGray(255))
 		}
 	}
 
