@@ -1,6 +1,6 @@
 module github.com/shu-go/glass
 
-go 1.13
+go 1.24
 
 require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
